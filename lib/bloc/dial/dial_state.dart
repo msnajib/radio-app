@@ -36,12 +36,18 @@ class DialState extends Equatable {
       band: band ?? this.band,
       isSnapping: isSnapping ?? this.isSnapping,
       stations: stations ?? this.stations,
-      snappedStation:
-          clearSnappedStation ? null : (snappedStation ?? this.snappedStation),
+      snappedStation: clearSnappedStation
+          ? null
+          : (snappedStation ?? this.snappedStation),
     );
   }
 
   @override
-  List<Object?> get props =>
-      [position, band, isSnapping, stations, snappedStation];
+  List<Object?> get props => [
+    position,
+    band,
+    isSnapping,
+    stations,
+    snappedStation,
+  ];
 }

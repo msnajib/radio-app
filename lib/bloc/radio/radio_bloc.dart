@@ -19,8 +19,8 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
   int _loadToken = 0;
 
   RadioBloc({required RadioBrowserRepository repository})
-      : _repository = repository,
-        super(const RadioState()) {
+    : _repository = repository,
+      super(const RadioState()) {
     _isPlayingSub = _player.isPlayingStream.listen(
       (isPlaying) {
         dev.log('[XYZ][RadioBloc] isPlayingStream → $isPlaying', name: 'Radio');
@@ -53,7 +53,10 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
     dev.log('[XYZ][RadioBloc] initializing — fetching stations', name: 'Radio');
     try {
       final stations = await _repository.getIndonesianStations();
-      dev.log('[XYZ][RadioBloc] loaded ${stations.length} stations', name: 'Radio');
+      dev.log(
+        '[XYZ][RadioBloc] loaded ${stations.length} stations',
+        name: 'Radio',
+      );
       emit(state.copyWith(allStations: stations));
     } catch (e) {
       dev.log('[XYZ][RadioBloc] failed to load stations: $e', name: 'Radio');
@@ -68,11 +71,17 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
     // false is ignored: HLS emits false between chunks; user actions
     // (pause/stop) update status directly without waiting for the stream.
     if (!event.isPlaying) {
-      dev.log('[XYZ][RadioBloc] isPlayingStream false — ignored', name: 'Radio');
+      dev.log(
+        '[XYZ][RadioBloc] isPlayingStream false — ignored',
+        name: 'Radio',
+      );
       return;
     }
     if (state.status != RadioStatus.playing) {
-      dev.log('[XYZ][RadioBloc] status: ${state.status} → playing', name: 'Radio');
+      dev.log(
+        '[XYZ][RadioBloc] status: ${state.status} → playing',
+        name: 'Radio',
+      );
       emit(state.copyWith(status: RadioStatus.playing));
     }
   }
@@ -85,21 +94,35 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
     RadioStationSelected event,
     Emitter<RadioState> emit,
   ) async {
-    dev.log('[XYZ][RadioBloc] station selected: "${event.station.name}" url=${event.station.streamUrl}', name: 'Radio');
+    dev.log(
+      '[XYZ][RadioBloc] station selected: "${event.station.name}" url=${event.station.streamUrl}',
+      name: 'Radio',
+    );
     _loadToken++;
-    emit(state.copyWith(status: RadioStatus.loading, currentStation: event.station));
+    emit(
+      state.copyWith(
+        status: RadioStatus.loading,
+        currentStation: event.station,
+      ),
+    );
     try {
       await _loadStation(event.station);
     } catch (e) {
       dev.log('[XYZ][RadioBloc] _loadStation error: $e', name: 'Radio');
-      emit(state.copyWith(status: RadioStatus.error, errorMessage: e.toString()));
+      emit(
+        state.copyWith(status: RadioStatus.error, errorMessage: e.toString()),
+      );
     }
   }
 
   void _onPlay(RadioPlayPressed event, Emitter<RadioState> emit) {
-    dev.log('[XYZ][RadioBloc] PLAY pressed — status=${state.status} station=${state.currentStation?.name}', name: 'Radio');
+    dev.log(
+      '[XYZ][RadioBloc] PLAY pressed — status=${state.status} station=${state.currentStation?.name}',
+      name: 'Radio',
+    );
     if (state.currentStation == null) return;
-    if (state.status == RadioStatus.initial || state.status == RadioStatus.stopped) {
+    if (state.status == RadioStatus.initial ||
+        state.status == RadioStatus.stopped) {
       emit(state.copyWith(status: RadioStatus.loading));
       _loadStation(state.currentStation!);
     } else {
@@ -115,9 +138,14 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
   }
 
   void _onStop(RadioStopPressed event, Emitter<RadioState> emit) {
-    dev.log('[XYZ][RadioBloc] STOP — rotated away (cancelling load token=${++_loadToken})', name: 'Radio');
+    dev.log(
+      '[XYZ][RadioBloc] STOP — rotated away (cancelling load token=${++_loadToken})',
+      name: 'Radio',
+    );
     _player.pause();
-    emit(state.copyWith(status: RadioStatus.stopped, clearCurrentStation: true));
+    emit(
+      state.copyWith(status: RadioStatus.stopped, clearCurrentStation: true),
+    );
   }
 
   void _onMuteToggled(RadioMuteToggled event, Emitter<RadioState> emit) {
@@ -140,7 +168,9 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
 
   void _onError(RadioErrorOccurred event, Emitter<RadioState> emit) {
     dev.log('[XYZ][RadioBloc] ERROR: ${event.message}', name: 'Radio');
-    emit(state.copyWith(status: RadioStatus.error, errorMessage: event.message));
+    emit(
+      state.copyWith(status: RadioStatus.error, errorMessage: event.message),
+    );
   }
 
   void _onPrevious(RadioPreviousPressed event, Emitter<RadioState> emit) {
@@ -149,9 +179,13 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
     final current = state.currentStation;
     if (current != null) {
       if (event.band == Band.fm && current.hasFMFrequency) {
-        target = _repository.adjacentFM(state.allStations, current.fmFrequency!).prev;
+        target = _repository
+            .adjacentFM(state.allStations, current.fmFrequency!)
+            .prev;
       } else if (event.band == Band.am && current.hasAMFrequency) {
-        target = _repository.adjacentAM(state.allStations, current.amFrequency!).prev;
+        target = _repository
+            .adjacentAM(state.allStations, current.amFrequency!)
+            .prev;
       }
     } else {
       // No current station — find nearest from dial position
@@ -174,9 +208,13 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
     final current = state.currentStation;
     if (current != null) {
       if (event.band == Band.fm && current.hasFMFrequency) {
-        target = _repository.adjacentFM(state.allStations, current.fmFrequency!).next;
+        target = _repository
+            .adjacentFM(state.allStations, current.fmFrequency!)
+            .next;
       } else if (event.band == Band.am && current.hasAMFrequency) {
-        target = _repository.adjacentAM(state.allStations, current.amFrequency!).next;
+        target = _repository
+            .adjacentAM(state.allStations, current.amFrequency!)
+            .next;
       }
     } else {
       // No current station — find nearest from dial position
@@ -195,14 +233,19 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
 
   Future<void> _loadStation(Station station) async {
     final token = ++_loadToken;
-    dev.log('[XYZ][RadioBloc] ── AUTOPLAY START ── "${station.name}" token=$token', name: 'Radio');
-    dev.log('[XYZ][RadioBloc] stream url: ${station.streamUrl}', name: 'Radio');
-    await _player.initialize(
-      [RadioSource(url: station.streamUrl, title: station.name)],
-      playWhenReady: true,
+    dev.log(
+      '[XYZ][RadioBloc] ── AUTOPLAY START ── "${station.name}" token=$token',
+      name: 'Radio',
     );
+    dev.log('[XYZ][RadioBloc] stream url: ${station.streamUrl}', name: 'Radio');
+    await _player.initialize([
+      RadioSource(url: station.streamUrl, title: station.name),
+    ], playWhenReady: true);
     if (token != _loadToken) {
-      dev.log('[XYZ][RadioBloc] load cancelled (token=$token current=$_loadToken)', name: 'Radio');
+      dev.log(
+        '[XYZ][RadioBloc] load cancelled (token=$token current=$_loadToken)',
+        name: 'Radio',
+      );
       await _player.pause();
       return;
     }
@@ -213,7 +256,10 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
     RadioSleepFadeOutPressed event,
     Emitter<RadioState> emit,
   ) async {
-    dev.log('[XYZ][RadioBloc] sleep timer expired — fading out over 3s', name: 'Radio');
+    dev.log(
+      '[XYZ][RadioBloc] sleep timer expired — fading out over 3s',
+      name: 'Radio',
+    );
     // Fade vol 1.0 → 0.0 in 10 steps over 3 seconds
     for (int i = 9; i >= 0; i--) {
       await Future.delayed(const Duration(milliseconds: 300));
@@ -221,7 +267,7 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
     }
     _player.pause();
     _player.setVolume(1.0); // restore for next play
-    emit(state.copyWith(status: RadioStatus.stopped, clearCurrentStation: true));
+    emit(state.copyWith(status: RadioStatus.stopped));
     dev.log('[XYZ][RadioBloc] sleep fade out complete', name: 'Radio');
   }
 

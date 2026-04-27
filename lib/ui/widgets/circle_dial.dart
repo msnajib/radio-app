@@ -474,7 +474,7 @@ class _DialPainter extends CustomPainter {
       false,
       Paint()
         ..color = const Color(0x44FFFFFF)
-        ..strokeWidth = 30
+        ..strokeWidth = 40
         ..style = PaintingStyle.stroke
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
     );
