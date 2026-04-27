@@ -1,21 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 enum AppThemeVariant { light, dark, retro, midnight, ocean, forest }
 
 class ThemeCubit extends Cubit<AppThemeVariant> {
-  /// TODO: Remove auto-cycle once theme switcher UI is implemented.
-  Timer? _autoCycleTimer;
-
-  ThemeCubit() : super(AppThemeVariant.light) {
-    /// TODO: Remove — cycles theme every 2 hours for testing until UI action exists.
-    _autoCycleTimer = Timer.periodic(
-      const Duration(hours: 2),
-      (_) => cycle(),
-    );
-  }
+  ThemeCubit() : super(AppThemeVariant.light);
 
   void setLight() => emit(AppThemeVariant.light);
   void setDark() => emit(AppThemeVariant.dark);
@@ -38,11 +27,5 @@ class ThemeCubit extends Cubit<AppThemeVariant> {
       default:
         return Brightness.dark;
     }
-  }
-
-  @override
-  Future<void> close() {
-    _autoCycleTimer?.cancel();
-    return super.close();
   }
 }

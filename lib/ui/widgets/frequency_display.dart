@@ -24,8 +24,9 @@ class FrequencyDisplay extends StatelessWidget {
     final freqStr = Formatters.frequencyFromPosition(dialPosition, band);
 
     return SizedBox(
-      width: 200,
+      width: double.infinity - 48,
       child: Column(
+        spacing: 8,
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -36,7 +37,6 @@ class FrequencyDisplay extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
             child: stationName != null
@@ -47,7 +47,7 @@ class FrequencyDisplay extends StatelessWidget {
                       color: theme.textSecondary,
                     ),
                     textAlign: TextAlign.center,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   )
                 : Text(

@@ -11,6 +11,7 @@ import '../../bloc/radio/radio_event.dart';
 import '../../bloc/radio/radio_state.dart';
 import '../../bloc/sleep_timer/sleep_timer_bloc.dart';
 import '../../bloc/sleep_timer/sleep_timer_state.dart';
+import '../../bloc/theme/theme_cubit.dart';
 import '../../core/constants/frequencies.dart';
 import '../../core/services/sfx_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -51,12 +52,14 @@ class _HomeScreenState extends State<HomeScreen> {
     // edgeToEdge mode renders content behind the status bar, so we offset
     // top-anchored items down by that amount to keep them below the bar.
     final topPad = MediaQuery.viewPaddingOf(context).top;
+    final isDark = context.watch<ThemeCubit>().brightness == Brightness.dark;
+    final iconBrightness = isDark ? Brightness.light : Brightness.dark;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
+        statusBarIconBrightness: iconBrightness,
         systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarIconBrightness: Brightness.dark,
+        systemNavigationBarIconBrightness: iconBrightness,
       ),
       child: Scaffold(
         backgroundColor: context.radioTheme.background,
@@ -258,11 +261,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Text('Radio', style: AppTypography.appTitle),
                     Row(
+                      spacing: 16,
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        _TimerButton(),
-                        SizedBox(width: 16),
-                        _MuteButton(),
+                      children: [
+                        const _ThemeButton(),
+                        const _TimerButton(),
+                        const _MuteButton(),
                       ],
                     ),
                   ],
@@ -340,7 +344,7 @@ class _MuteButton extends StatelessWidget {
                   : Icons.volume_up_rounded,
               key: ValueKey(state.isMuted),
               color: context.radioTheme.textPrimary,
-              size: 28,
+              size: 24,
             ),
           ),
         );
@@ -370,6 +374,24 @@ class _TimerButton extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+// ── Theme cycle button ───────────────────────────────────────────────────────
+
+class _ThemeButton extends StatelessWidget {
+  const _ThemeButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.read<ThemeCubit>().cycle(),
+      child: Icon(
+        Icons.palette_outlined,
+        color: context.radioTheme.textPrimary,
+        size: 24,
+      ),
     );
   }
 }
