@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 import 'radio_theme.dart';
+import '../../bloc/theme/theme_cubit.dart';
 
 export 'app_colors.dart';
 export 'app_shadows.dart';
@@ -12,6 +13,19 @@ export 'radio_theme.dart';
 abstract final class AppTheme {
   static ThemeData get light => _build(AppColorTheme.light, Brightness.light);
   static ThemeData get dark => _build(AppColorTheme.dark, Brightness.dark);
+  static ThemeData get retro => _build(AppColorTheme.retro, Brightness.light);
+  static ThemeData get midnight => _build(AppColorTheme.midnight, Brightness.dark);
+  static ThemeData get ocean => _build(AppColorTheme.ocean, Brightness.dark);
+  static ThemeData get forest => _build(AppColorTheme.forest, Brightness.dark);
+
+  static ThemeData forVariant(AppThemeVariant v) => switch (v) {
+        AppThemeVariant.light => light,
+        AppThemeVariant.dark => dark,
+        AppThemeVariant.retro => retro,
+        AppThemeVariant.midnight => midnight,
+        AppThemeVariant.ocean => ocean,
+        AppThemeVariant.forest => forest,
+      };
 
   static ThemeData _build(AppColorTheme r, Brightness brightness) {
     return ThemeData(

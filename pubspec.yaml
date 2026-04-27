@@ -2,7 +2,7 @@ name: radio_app
 description: "Analog radio streaming app with neumorphism UI."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.0-alpha.1+2
 
 environment:
   sdk: ^3.9.0
@@ -41,3 +41,4 @@ flutter:
 
   assets:
     - assets/audio/
+    - assets/images/

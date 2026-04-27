@@ -37,8 +37,7 @@ class RadioApp extends StatelessWidget {
       ],
       child: MultiBlocProvider(
         providers: [
-          // BlocProvider(create: (_) => ThemeCubit()),
-          BlocProvider(create: (_) => ThemeCubit()..setDark()),
+          BlocProvider(create: (_) => ThemeCubit()),
           BlocProvider(create: (_) => DialBloc(datasource: hiveDatasource)),
           BlocProvider(
             create: (_) =>
@@ -51,14 +50,12 @@ class RadioApp extends StatelessWidget {
           ),
           BlocProvider(create: (_) => SleepTimerBloc()),
         ],
-        child: BlocBuilder<ThemeCubit, ThemeMode>(
-          builder: (context, themeMode) {
+        child: BlocBuilder<ThemeCubit, AppThemeVariant>(
+          builder: (context, variant) {
             return MaterialApp(
               title: 'Radio',
               debugShowCheckedModeBanner: false,
-              theme: AppTheme.light,
-              darkTheme: AppTheme.dark,
-              themeMode: themeMode,
+              theme: AppTheme.forVariant(variant),
               home: const HomeScreen(),
             );
           },

@@ -98,6 +98,7 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
       '[XYZ][RadioBloc] station selected: "${event.station.name}" url=${event.station.streamUrl}',
       name: 'Radio',
     );
+    _unmuteFadeTimer?.cancel();
     _loadToken++;
     emit(
       state.copyWith(
@@ -241,6 +242,7 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
     await _player.initialize([
       RadioSource(url: station.streamUrl, title: station.name),
     ], playWhenReady: true);
+    _player.setVolume(state.isMuted ? 0.0 : 1.0);
     if (token != _loadToken) {
       dev.log(
         '[XYZ][RadioBloc] load cancelled (token=$token current=$_loadToken)',

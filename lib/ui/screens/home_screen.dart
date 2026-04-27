@@ -231,6 +231,23 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
           child: Stack(
             children: [
+              // ── Noise texture overlay ──────────────────────────────
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    image: DecorationImage(
+                      image: const AssetImage('assets/images/noise.png'),
+                      fit: BoxFit.cover,
+                      opacity: 0.1,
+                      colorFilter: ColorFilter.mode(
+                        context.radioTheme.background,
+                        BlendMode.softLight,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
               // ── Top bar: title + favorite button ───────────────────
               Positioned(
                 top: topPad + 36,

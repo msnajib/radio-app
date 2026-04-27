@@ -30,11 +30,9 @@ abstract final class AppTypography {
     letterSpacing: 0.2,
   );
 
-  // buttonLabel is always white regardless of theme
   static TextStyle get buttonLabel => GoogleFonts.geist(
     fontSize: 14,
     fontWeight: FontWeight.w700,
-    color: Colors.white,
   );
 
   // dialLabel color is applied by _DialPainter using the active RadioTheme

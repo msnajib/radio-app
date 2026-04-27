@@ -4,11 +4,27 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:radio_app/core/services/sfx_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import '../../core/theme/radio_theme.dart';
 
-// Shared sphere-style button shell — colors are fixed (physical element).
+class _SphereColors {
+  final Color ringLight;
+  final Color ringDark;
+  final Color bodyLight;
+  final Color bodyMid;
+  final Color bodyDark;
+
+  const _SphereColors({
+    required this.ringLight,
+    required this.ringDark,
+    required this.bodyLight,
+    required this.bodyMid,
+    required this.bodyDark,
+  });
+}
+
 Widget _sphereShell({
   required Widget child,
-  required bool isPrimary,
+  required _SphereColors colors,
   required bool pressed,
   double? width,
   required double height,
@@ -24,9 +40,7 @@ Widget _sphereShell({
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: isPrimary
-              ? const [AppColors.buttonPrimaryRingLight, AppColors.buttonPrimaryRingDark]
-              : const [AppColors.buttonSecondaryRingLight, AppColors.buttonSecondaryRingDark],
+          colors: [colors.ringLight, colors.ringDark],
         ),
       ),
       padding: const EdgeInsets.all(2.5),
@@ -36,17 +50,7 @@ Widget _sphereShell({
           gradient: RadialGradient(
             center: const Alignment(-0.2, -0.5),
             radius: 1.3,
-            colors: isPrimary
-                ? const [
-                    AppColors.buttonPrimaryBodyLight,
-                    AppColors.buttonPrimaryBodyMid,
-                    AppColors.buttonPrimaryBodyDark,
-                  ]
-                : const [
-                    AppColors.buttonSecondaryBodyLight,
-                    AppColors.buttonSecondaryBodyMid,
-                    AppColors.buttonSecondaryBodyDark,
-                  ],
+            colors: [colors.bodyLight, colors.bodyMid, colors.bodyDark],
             stops: const [0.0, 0.45, 1.0],
           ),
         ),
@@ -56,7 +60,16 @@ Widget _sphereShell({
   );
 }
 
-// ── Primary button ────────────────────────────────────────────────────────────
+// Fixed secondary sphere colors — prev/next are physical elements, never themed.
+const _SphereColors _secondaryColors = _SphereColors(
+  ringLight: AppColors.buttonSecondaryRingLight,
+  ringDark: AppColors.buttonSecondaryRingDark,
+  bodyLight: AppColors.buttonSecondaryBodyLight,
+  bodyMid: AppColors.buttonSecondaryBodyMid,
+  bodyDark: AppColors.buttonSecondaryBodyDark,
+);
+
+// ── Primary button (Play/Pause) — follows theme ───────────────────────────────
 
 class NeuButtonPrimary extends StatefulWidget {
   final String label;
@@ -81,6 +94,14 @@ class _NeuButtonPrimaryState extends State<NeuButtonPrimary> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.radioTheme;
+    final colors = _SphereColors(
+      ringLight: theme.btnPriRingLight,
+      ringDark: theme.btnPriRingDark,
+      bodyLight: theme.btnPriBodyLight,
+      bodyMid: theme.btnPriBodyMid,
+      bodyDark: theme.btnPriBodyDark,
+    );
     return GestureDetector(
       onTapDown: (_) {
         context.read<SfxService>().playTapDown();
@@ -94,16 +115,16 @@ class _NeuButtonPrimaryState extends State<NeuButtonPrimary> {
       },
       onTapCancel: () => setState(() => _pressed = false),
       child: _sphereShell(
-        isPrimary: true,
+        colors: colors,
         pressed: _pressed,
         height: 52,
         child: widget.isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: AppColors.buttonPrimaryText,
+                  color: theme.btnPriText,
                 ),
               )
             : Row(
@@ -111,14 +132,12 @@ class _NeuButtonPrimaryState extends State<NeuButtonPrimary> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (widget.icon != null)
-                    Icon(
-                      widget.icon,
-                      color: AppColors.buttonPrimaryText,
-                      size: 24,
-                    ),
+                    Icon(widget.icon, color: theme.btnPriText, size: 24),
                   Text(
                     widget.label,
-                    style: AppTypography.buttonLabel,
+                    style: AppTypography.buttonLabel.copyWith(
+                      color: theme.btnPriText,
+                    ),
                   ),
                 ],
               ),
@@ -127,7 +146,7 @@ class _NeuButtonPrimaryState extends State<NeuButtonPrimary> {
   }
 }
 
-// ── Secondary button ──────────────────────────────────────────────────────────
+// ── Secondary button (Prev/Next) — fixed, physical element ────────────────────
 
 class NeuButtonSecondary extends StatefulWidget {
   final Widget child;
@@ -165,7 +184,7 @@ class _NeuButtonSecondaryState extends State<NeuButtonSecondary> {
       },
       onTapCancel: () => setState(() => _pressed = false),
       child: _sphereShell(
-        isPrimary: false,
+        colors: _secondaryColors,
         pressed: _pressed,
         width: widget.width,
         height: widget.height,
