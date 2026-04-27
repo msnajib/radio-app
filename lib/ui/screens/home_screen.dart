@@ -108,20 +108,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 final sfx = context.read<SfxService>();
                 if (dialState.snappedStation != null) {
                   final radioBloc = context.read<RadioBloc>();
-                  // Skip if RadioBloc already selected this station (e.g. from prev/next)
+                  // Always stop static when snap occurs (even if prev/next already selected this station)
+                  sfx.stopStaticNoise();
+                  // Skip RadioStationSelected if already selected (e.g. from prev/next)
                   if (radioBloc.state.currentStation ==
                       dialState.snappedStation) {
                     dev.log(
-                      '[XYZ][HomeScreen] snap → "${dialState.snappedStation!.name}" already current, skip',
+                      '[XYZ][HomeScreen] snap → "${dialState.snappedStation!.name}" already current, skip reselect',
                       name: 'Home',
                     );
                     return;
                   }
                   dev.log(
-                    '[XYZ][HomeScreen] snap → station "${dialState.snappedStation!.name}" — stop static, select station',
+                    '[XYZ][HomeScreen] snap → station "${dialState.snappedStation!.name}" — select station',
                     name: 'Home',
                   );
-                  sfx.stopStaticNoise();
                   radioBloc.add(
                     RadioStationSelected(dialState.snappedStation!),
                   );
@@ -587,6 +588,9 @@ class _ControlsBar extends StatelessWidget {
   }
 
   void _navigatePrev(BuildContext context) {
+    final sfx = context.read<SfxService>();
+    sfx.startStaticNoise();
+    sfx.playTick();
     final dialState = context.read<DialBloc>().state;
     context.read<RadioBloc>().add(
       RadioPreviousPressed(dialState.band, dialState.position),
@@ -594,6 +598,9 @@ class _ControlsBar extends StatelessWidget {
   }
 
   void _navigateNext(BuildContext context) {
+    final sfx = context.read<SfxService>();
+    sfx.startStaticNoise();
+    sfx.playTick();
     final dialState = context.read<DialBloc>().state;
     context.read<RadioBloc>().add(
       RadioNextPressed(dialState.band, dialState.position),

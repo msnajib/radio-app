@@ -65,6 +65,9 @@ class _CircleDialState extends State<CircleDial> {
   // Local position tracked in real-time during gesture (not waiting for BLoC rebuild).
   double _localPos = 0.0;
 
+  // Track if this gesture started from home indicator area — block it entirely
+  bool _isBlockedGesture = false;
+
   int _totalTicks() =>
       widget.band == Band.fm ? FMConstants.totalTicks : AMConstants.totalTicks;
 
@@ -91,7 +94,31 @@ class _CircleDialState extends State<CircleDial> {
     return math.atan2(cross, dot);
   }
 
+  // Check if position is outside the center accent ring (radius ~160px).
+  // Gesture only works outside this ring.
+  bool _isOutsideAccentRing(Offset pos, Offset center) {
+    const accentRingRadius = 160.0; // kKnobR - 160 = 320 - 160
+    final distFromCenter = (pos - center).distance;
+    return distFromCenter > accentRingRadius;
+  }
+
+  // Check if gesture position is valid (outside accent ring AND not in home indicator area).
+  // Rejects gestures that start too far below center (home indicator gesture interference).
+  bool _isValidGesturePosition(Offset pos, Offset center) {
+    const maxBelowCenter =
+        80.0; // Increased to fully cover home indicator + system gesture area
+    if (pos.dy > center.dy + maxBelowCenter) return false;
+    return _isOutsideAccentRing(pos, center);
+  }
+
   void _onPanStart(DragStartDetails d, Offset center) {
+    // Ignore gesture if inside center accent ring or from home indicator area
+    if (!_isValidGesturePosition(d.localPosition, center)) {
+      _isBlockedGesture = true;
+      return;
+    }
+
+    _isBlockedGesture = false;
     _lastPos = d.localPosition;
     _localPos = widget.position;
     _lastTick = (_localPos * (_totalTicks() - 1)).round();
@@ -99,7 +126,15 @@ class _CircleDialState extends State<CircleDial> {
   }
 
   void _onPanUpdate(DragUpdateDetails d, Offset center) {
+    if (_isBlockedGesture) return;
     if (_lastPos == null) return;
+
+    // Ignore gesture if inside center accent ring or from home indicator area
+    if (!_isValidGesturePosition(d.localPosition, center)) {
+      _lastPos = null;
+      _isBlockedGesture = true;
+      return;
+    }
     final cur = d.localPosition;
     final dAngle = _angularDelta(_lastPos!, cur, center);
     _lastPos = cur;
@@ -127,7 +162,11 @@ class _CircleDialState extends State<CircleDial> {
 
   void _onPanEnd(DragEndDetails d) {
     _lastPos = null;
-    if (widget.onRelease == null) return;
+    // Only emit release momentum if gesture was not blocked from home indicator
+    if (_isBlockedGesture || widget.onRelease == null) {
+      _isBlockedGesture = false;
+      return;
+    }
     final speed = d.velocity.pixelsPerSecond.distance;
     final fraction = (speed / 3000.0).clamp(0.0, 1.0);
     // Negated to match drag direction convention above.
@@ -341,8 +380,8 @@ class _DialPainter extends CustomPainter {
     const kGripInner = kKnobR - 36.0;
     const kGripOuter = kKnobR - 2.0;
     // Indicator lives at ~80% of knob radius, inside the body area
-    const kIndicatorOuter = kKnobR - 52.0;
-    const kIndicatorInner = kKnobR - 100.0;
+    const kIndicatorOuter = kKnobR - 64.0;
+    const kIndicatorInner = kKnobR - 120.0;
 
     final knobRect = Rect.fromCircle(center: Offset(cx, cy), radius: kKnobR);
 
