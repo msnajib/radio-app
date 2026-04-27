@@ -2,11 +2,62 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:radio_app/core/services/sfx_service.dart';
-import '../../core/theme/app_theme.dart';
-import 'inner_shadow_box.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_typography.dart';
 
-// Primary pill button — flex-grow, height 52px, bg #333333, rounded 100px, inset shadow.
-// Figma: inset 12 12 24 #3E3E3E, inset -12 -12 24 #1E1E1E
+// Shared sphere-style button shell — colors are fixed (physical element).
+Widget _sphereShell({
+  required Widget child,
+  required bool isPrimary,
+  required bool pressed,
+  double? width,
+  required double height,
+}) {
+  return AnimatedScale(
+    scale: pressed ? 0.96 : 1.0,
+    duration: const Duration(milliseconds: 60),
+    child: Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(100),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isPrimary
+              ? const [AppColors.buttonPrimaryRingLight, AppColors.buttonPrimaryRingDark]
+              : const [AppColors.buttonSecondaryRingLight, AppColors.buttonSecondaryRingDark],
+        ),
+      ),
+      padding: const EdgeInsets.all(2.5),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(100),
+          gradient: RadialGradient(
+            center: const Alignment(-0.2, -0.5),
+            radius: 1.3,
+            colors: isPrimary
+                ? const [
+                    AppColors.buttonPrimaryBodyLight,
+                    AppColors.buttonPrimaryBodyMid,
+                    AppColors.buttonPrimaryBodyDark,
+                  ]
+                : const [
+                    AppColors.buttonSecondaryBodyLight,
+                    AppColors.buttonSecondaryBodyMid,
+                    AppColors.buttonSecondaryBodyDark,
+                  ],
+            stops: const [0.0, 0.45, 1.0],
+          ),
+        ),
+        child: Center(child: child),
+      ),
+    ),
+  );
+}
+
+// ── Primary button ────────────────────────────────────────────────────────────
+
 class NeuButtonPrimary extends StatefulWidget {
   final String label;
   final IconData? icon;
@@ -42,57 +93,42 @@ class _NeuButtonPrimaryState extends State<NeuButtonPrimary> {
         widget.onPressed?.call();
       },
       onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedOpacity(
-        opacity: _pressed ? 0.85 : 1.0,
-        duration: const Duration(milliseconds: 60),
-        child: InnerShadowBox(
-          color: AppColors.buttonPrimaryBg,
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF4A4A4A),            // light dark edge
-              AppColors.buttonPrimaryBg,    // #333333 mid
-              AppColors.buttonPrimaryInset2, // #1E1E1E deep shadow
-            ],
-            stops: [0.0, 0.45, 1.0],
-          ),
-          shadows: AppInsetShadows.buttonPrimary,
-          borderRadius: 100,
-          height: 52,
-          child: Center(
-            child: widget.isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
+      child: _sphereShell(
+        isPrimary: true,
+        pressed: _pressed,
+        height: 52,
+        child: widget.isLoading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.buttonPrimaryText,
+                ),
+              )
+            : Row(
+                spacing: 4,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.icon != null)
+                    Icon(
+                      widget.icon,
                       color: AppColors.buttonPrimaryText,
+                      size: 24,
                     ),
-                  )
-                : Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (widget.icon != null) ...[
-                        Icon(
-                          widget.icon,
-                          color: AppColors.buttonPrimaryText,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                      Text(widget.label, style: AppTypography.buttonLabel),
-                    ],
+                  Text(
+                    widget.label,
+                    style: AppTypography.buttonLabel,
                   ),
-          ),
-        ),
+                ],
+              ),
       ),
     );
   }
 }
 
-// Secondary pill button — 80x52px, bg #DEE4E6, rounded 100px, inset shadow.
-// Figma: inset 12 12 24 #DEE4E6, inset -12 -12 24 #B7C1C5
+// ── Secondary button ──────────────────────────────────────────────────────────
+
 class NeuButtonSecondary extends StatefulWidget {
   final Widget child;
   final VoidCallback? onPressed;
@@ -128,27 +164,12 @@ class _NeuButtonSecondaryState extends State<NeuButtonSecondary> {
         widget.onPressed?.call();
       },
       onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedOpacity(
-        opacity: _pressed ? 0.80 : 1.0,
-        duration: const Duration(milliseconds: 60),
-        child: InnerShadowBox(
-          color: AppColors.buttonSecondaryBg,
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFFFFFFF),   // bright highlight
-              Color(0xFFE2E2E2),   // neutral gray mid
-              Color(0xFFABABAB),   // neutral gray shadow
-            ],
-            stops: [0.0, 0.4, 1.0],
-          ),
-          shadows: AppInsetShadows.buttonSecondary,
-          borderRadius: 100,
-          width: widget.width,
-          height: widget.height,
-          child: Center(child: widget.child),
-        ),
+      child: _sphereShell(
+        isPrimary: false,
+        pressed: _pressed,
+        width: widget.width,
+        height: widget.height,
+        child: widget.child,
       ),
     );
   }

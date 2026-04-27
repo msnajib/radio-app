@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_typography.dart';
+import '../../core/theme/radio_theme.dart';
 
 // FM/AM pill toggle.
-// Figma: border 1px #1C1C1C, rounded 999px, padding 2px, bg #EFF1F2.
-// Each item: 44 x 32 px; selected: rounded 100px, bg #333333, text #EFF1F2.
 class NeuToggle extends StatelessWidget {
   final List<String> labels;
   final int selectedIndex;
@@ -19,11 +18,12 @@ class NeuToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.radioTheme;
     return Container(
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: AppColors.background,
-        border: Border.all(color: AppColors.toggleBorder, width: 1),
+        color: theme.background,
+        border: Border.all(color: theme.toggleBorder, width: 1),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -43,7 +43,7 @@ class NeuToggle extends StatelessWidget {
               width: 44,
               height: 32,
               decoration: BoxDecoration(
-                color: isActive ? AppColors.toggleSelectedBg : Colors.transparent,
+                color: isActive ? theme.toggleSelectedBg : Colors.transparent,
                 borderRadius: BorderRadius.circular(100),
               ),
               child: Center(
@@ -51,8 +51,8 @@ class NeuToggle extends StatelessWidget {
                   labels[i],
                   style: AppTypography.bandLabel.copyWith(
                     color: isActive
-                        ? AppColors.toggleSelectedText
-                        : AppColors.toggleUnselectedText,
+                        ? theme.toggleSelectedText
+                        : theme.toggleBorder,
                   ),
                 ),
               ),

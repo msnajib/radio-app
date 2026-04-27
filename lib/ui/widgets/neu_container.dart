@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_colors.dart';
+import '../../core/theme/radio_theme.dart';
 
 // Plain flat container — no shadows. Use InnerShadowBox for button-style containers.
 class NeuContainer extends StatelessWidget {
@@ -32,7 +32,7 @@ class NeuContainer extends StatelessWidget {
       margin: margin,
       padding: padding,
       decoration: BoxDecoration(
-        color: color ?? AppColors.background,
+        color: color ?? context.radioTheme.background,
         borderRadius: BorderRadius.circular(borderRadius),
       ),
       child: child,

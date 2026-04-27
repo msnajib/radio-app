@@ -6,6 +6,7 @@ import 'bloc/favorites/favorites_event.dart';
 import 'bloc/radio/radio_bloc.dart';
 import 'bloc/radio/radio_event.dart';
 import 'bloc/sleep_timer/sleep_timer_bloc.dart';
+import 'bloc/theme/theme_cubit.dart';
 import 'core/services/sfx_service.dart';
 import 'core/theme/app_theme.dart';
 import 'data/datasources/hive_datasource.dart';
@@ -36,22 +37,31 @@ class RadioApp extends StatelessWidget {
       ],
       child: MultiBlocProvider(
         providers: [
+          // BlocProvider(create: (_) => ThemeCubit()),
+          BlocProvider(create: (_) => ThemeCubit()..setDark()),
           BlocProvider(create: (_) => DialBloc(datasource: hiveDatasource)),
           BlocProvider(
-            create: (_) => RadioBloc(repository: radioRepo)
-              ..add(const RadioInitialized()),
+            create: (_) =>
+                RadioBloc(repository: radioRepo)..add(const RadioInitialized()),
           ),
           BlocProvider(
-            create: (_) => FavoritesBloc(repository: favoriteRepo)
-              ..add(const FavoritesLoaded()),
+            create: (_) =>
+                FavoritesBloc(repository: favoriteRepo)
+                  ..add(const FavoritesLoaded()),
           ),
           BlocProvider(create: (_) => SleepTimerBloc()),
         ],
-        child: MaterialApp(
-          title: 'Radio',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.theme,
-          home: const HomeScreen(),
+        child: BlocBuilder<ThemeCubit, ThemeMode>(
+          builder: (context, themeMode) {
+            return MaterialApp(
+              title: 'Radio',
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.light,
+              darkTheme: AppTheme.dark,
+              themeMode: themeMode,
+              home: const HomeScreen(),
+            );
+          },
         ),
       ),
     );

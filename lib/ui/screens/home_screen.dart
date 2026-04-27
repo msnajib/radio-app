@@ -14,6 +14,7 @@ import '../../bloc/sleep_timer/sleep_timer_state.dart';
 import '../../core/constants/frequencies.dart';
 import '../../core/services/sfx_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/radio_theme.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/utils/frequency_mapper.dart';
 import '../../data/repositories/radio_browser_repository.dart';
@@ -58,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: context.radioTheme.background,
         body: MultiBlocListener(
           listeners: [
             // Sleep timer expired → fade out audio
@@ -321,7 +322,7 @@ class _MuteButton extends StatelessWidget {
                   ? Icons.volume_off_rounded
                   : Icons.volume_up_rounded,
               key: ValueKey(state.isMuted),
-              color: AppColors.textPrimary,
+              color: context.radioTheme.textPrimary,
               size: 28,
             ),
           ),
@@ -347,7 +348,7 @@ class _TimerButton extends StatelessWidget {
             Icons.bedtime_rounded,
             color: state.isActive
                 ? AppColors.dialNeedle
-                : AppColors.textPrimary,
+                : context.radioTheme.textPrimary,
             size: 24,
           ),
         );
@@ -370,10 +371,10 @@ class _SleepCountdown extends StatelessWidget {
       builder: (context, state) {
         if (!state.isActive) return const SizedBox.shrink();
         return Row(
+          spacing: 4,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.bedtime_rounded, size: 10, color: AppColors.dialNeedle),
-            const SizedBox(width: 4),
+            Icon(Icons.bedtime_rounded, size: 12, color: AppColors.dialNeedle),
             Text(
               state.formattedRemaining,
               style: AppTypography.bodySmall.copyWith(
@@ -553,7 +554,11 @@ class _ControlsBar extends StatelessWidget {
               onPressed: () {
                 _navigatePrev(context);
               },
-              child: const Icon(Icons.fast_rewind_rounded, size: 20),
+              child: const Icon(
+                Icons.fast_rewind_rounded,
+                size: 24,
+                color: AppColors.buttonPrimaryBodyMid,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -579,7 +584,11 @@ class _ControlsBar extends StatelessWidget {
               onPressed: () {
                 _navigateNext(context);
               },
-              child: const Icon(Icons.fast_forward_rounded, size: 20),
+              child: const Icon(
+                Icons.fast_forward_rounded,
+                size: 24,
+                color: AppColors.buttonPrimaryBodyMid,
+              ),
             ),
           ],
         );

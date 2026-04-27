@@ -2,8 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 
-// Decorative knob — purely visual, 48x48 px, no gesture detection.
-// Gesture handling lives in CircleDial (the full arc is the drag target).
+// Decorative knob — purely visual, 48x48 px, fixed colors (physical element).
 class Knob extends StatelessWidget {
   static const double kSize = 48;
 
@@ -11,7 +10,7 @@ class Knob extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return const SizedBox(
       width: kSize,
       height: kSize,
       child: CustomPaint(painter: _KnobPainter()),
@@ -20,34 +19,34 @@ class Knob extends StatelessWidget {
 }
 
 class _KnobPainter extends CustomPainter {
+  const _KnobPainter();
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2; // 24.0
+    final radius = size.width / 2;
     final rect = Rect.fromCircle(center: center, radius: radius);
 
-    // 1. Metallic gradient fill — 215° (upper-right → lower-left)
     canvas.drawCircle(
       center,
       radius,
       Paint()
         ..shader = const LinearGradient(
-          begin: Alignment(0.57, -0.82), // ~35° origin
-          end: Alignment(-0.57, 0.82), // ~215° destination
-          colors: [Color(0xFFEEEEEE), Color(0xFF454545)],
+          begin: Alignment(0.57, -0.82),
+          end: Alignment(-0.57, 0.82),
+          colors: [AppColors.knobGradientLight, AppColors.knobGradientDark],
           stops: [0.117, 0.866],
         ).createShader(rect),
     );
 
-    // 2. Grip lines — 88 short radial segments spread 360°
     final gripPaint = Paint()
-      ..color = const Color(0xFFEEEEEE)
+      ..color = AppColors.knobGradientLight
       ..strokeWidth = 0.8
       ..strokeCap = StrokeCap.butt
       ..style = PaintingStyle.stroke;
 
-    const double gripOuter = 22.0; // just inside border
-    const double gripInner = 16.0; // 6 px grip length
+    const double gripOuter = 22.0;
+    const double gripInner = 16.0;
 
     for (int i = 0; i < 88; i++) {
       final angle = (i / 88) * 2 * math.pi;
@@ -60,7 +59,6 @@ class _KnobPainter extends CustomPainter {
       );
     }
 
-    // 3. Border ring
     canvas.drawCircle(
       center,
       radius - 1,

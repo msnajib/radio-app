@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../core/constants/frequencies.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import '../../core/theme/radio_theme.dart';
 import '../../core/utils/frequency_mapper.dart';
 
 // Rotating tick arc with built-in rotary gesture detection.
@@ -191,6 +192,7 @@ class _CircleDialState extends State<CircleDial> {
               position: widget.position,
               band: widget.band,
               playingTickIndex: widget.playingTickIndex,
+              theme: context.radioTheme,
             ),
           ),
         );
@@ -205,10 +207,12 @@ class _DialPainter extends CustomPainter {
   final double position;
   final Band band;
   final int? playingTickIndex;
+  final AppColorTheme theme;
 
   const _DialPainter({
     required this.position,
     required this.band,
+    required this.theme,
     this.playingTickIndex,
   });
 
@@ -247,12 +251,12 @@ class _DialPainter extends CustomPainter {
       math.pi,
       math.pi,
       true,
-      Paint()..color = const Color(0xFFFFFFFF),
+      Paint()..color = theme.dialBackground,
     );
 
     // ── Dead zone arcs (grey ring) ────────────────────────────────────────────
     final deadPaint = Paint()
-      ..color = AppColors.dialDeadZone
+      ..color = theme.dialDeadZone
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
@@ -295,7 +299,7 @@ class _DialPainter extends CustomPainter {
       ..strokeWidth = 1
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke
-      ..color = const Color(0x331C1C1C); // #1C1C1C @ 20% opacity
+      ..color = theme.dialGhostTick;
 
     // ── Ghost ticks in dead zone ──────────────────────────────────────────────
     void drawTick(Canvas c, int d, Paint paint) {
@@ -339,7 +343,7 @@ class _DialPainter extends CustomPainter {
 
       final major = isMajor(i);
       final tickLen = major ? CircleDial.kMajorTick : CircleDial.kMinorTick;
-      tickPaint.color = major ? AppColors.dialTickMajor : AppColors.dialTick;
+      tickPaint.color = major ? theme.dialTickMajor : theme.dialTick;
 
       // OUTWARD: base at ring surface (r), tip outside ring (r + tickLen).
       canvas.drawLine(
@@ -365,7 +369,7 @@ class _DialPainter extends CustomPainter {
           final tp = TextPainter(
             text: TextSpan(
               text: labelStr.toUpperCase(),
-              style: AppTypography.dialLabel,
+              style: AppTypography.dialLabel.copyWith(color: theme.dialTickMajor),
             ),
             textDirection: TextDirection.ltr,
           )..layout();
@@ -392,7 +396,7 @@ class _DialPainter extends CustomPainter {
       math.pi,
       true,
       Paint()
-        ..color = const Color(0x44000000)
+        ..color = AppColors.knobChromeShadow
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
     );
 
@@ -403,14 +407,14 @@ class _DialPainter extends CustomPainter {
       math.pi,
       true,
       Paint()
-        ..shader = const RadialGradient(
+        ..shader = RadialGradient(
           center: Alignment(-0.18, -0.42),
           radius: 1.05,
           colors: [
-            Color(0xFFF6F6F6), // bright specular center
-            Color(0xFFD2D2D2), // silver mid
-            Color(0xFF909090), // darker silver
-            Color(0xFF565656), // deep shadow at edge
+            AppColors.knobChromeTop,
+            AppColors.knobChromeMid1,
+            AppColors.knobChromeMid2,
+            AppColors.knobChromeEdge,
           ],
           stops: [0.0, 0.32, 0.70, 1.0],
         ).createShader(knobRect),
@@ -423,7 +427,7 @@ class _DialPainter extends CustomPainter {
       math.pi,
       false,
       Paint()
-        ..color = const Color(0xFFCFC9C9)
+        ..color = AppColors.knobChromeAccentShadow
         ..strokeWidth = 1.5
         ..style = PaintingStyle.stroke,
     );
@@ -433,7 +437,7 @@ class _DialPainter extends CustomPainter {
       math.pi,
       false,
       Paint()
-        ..color = const Color(0xFFE8E8E8)
+        ..color = AppColors.knobChromeAccentHighlight
         ..strokeWidth = 0.8
         ..style = PaintingStyle.stroke,
     );
@@ -448,7 +452,7 @@ class _DialPainter extends CustomPainter {
       math.pi,
       false,
       Paint()
-        ..color = const Color(0xFFC8C8C8)
+        ..color = AppColors.knobChromeGrip
         ..strokeWidth = kGripOuter - kGripInner
         ..style = PaintingStyle.stroke,
     );
@@ -460,7 +464,7 @@ class _DialPainter extends CustomPainter {
       math.pi,
       false,
       Paint()
-        ..color = const Color(0xFF888888)
+        ..color = AppColors.knobChromeSepShadow
         ..strokeWidth = 1.5
         ..style = PaintingStyle.stroke,
     );
@@ -470,7 +474,7 @@ class _DialPainter extends CustomPainter {
       math.pi,
       false,
       Paint()
-        ..color = const Color(0xFFE2E2E2)
+        ..color = AppColors.knobChromeSepHighlight
         ..strokeWidth = 0.8
         ..style = PaintingStyle.stroke,
     );
@@ -484,7 +488,7 @@ class _DialPainter extends CustomPainter {
         Offset(cx + kGripInner * ca, cy + kGripInner * sa),
         Offset(cx + kGripOuter * ca, cy + kGripOuter * sa),
         Paint()
-          ..color = const Color(0xFF888888)
+          ..color = AppColors.knobChromeSepShadow
           ..strokeWidth = 1.6
           ..strokeCap = StrokeCap.butt
           ..style = PaintingStyle.stroke,
@@ -495,7 +499,7 @@ class _DialPainter extends CustomPainter {
         Offset(cx + kGripInner * math.cos(ah), cy + kGripInner * math.sin(ah)),
         Offset(cx + kGripOuter * math.cos(ah), cy + kGripOuter * math.sin(ah)),
         Paint()
-          ..color = const Color(0xFFE8E8E8)
+          ..color = AppColors.knobChromeAccentHighlight
           ..strokeWidth = 0.7
           ..strokeCap = StrokeCap.butt
           ..style = PaintingStyle.stroke,
@@ -512,7 +516,7 @@ class _DialPainter extends CustomPainter {
       math.pi * 0.42,
       false,
       Paint()
-        ..color = const Color(0x44FFFFFF)
+        ..color = AppColors.knobChromeSpecular
         ..strokeWidth = 40
         ..style = PaintingStyle.stroke
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
@@ -525,7 +529,7 @@ class _DialPainter extends CustomPainter {
       math.pi,
       false,
       Paint()
-        ..color = const Color(0xFF787878)
+        ..color = AppColors.knobChromeBorder
         ..strokeWidth = 2
         ..style = PaintingStyle.stroke,
     );
@@ -535,7 +539,7 @@ class _DialPainter extends CustomPainter {
       Offset(cx, cy - kIndicatorInner),
       Offset(cx, cy - kIndicatorOuter),
       Paint()
-        ..color = AppColors.dialTick
+        ..color = theme.dialTick
         ..strokeWidth = 4
         ..strokeCap = StrokeCap.round
         ..style = PaintingStyle.stroke,
@@ -546,5 +550,6 @@ class _DialPainter extends CustomPainter {
   bool shouldRepaint(_DialPainter old) =>
       old.position != position ||
       old.band != band ||
-      old.playingTickIndex != playingTickIndex;
+      old.playingTickIndex != playingTickIndex ||
+      old.theme != theme;
 }

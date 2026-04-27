@@ -4,16 +4,18 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/sleep_timer/sleep_timer_bloc.dart';
 import '../../bloc/sleep_timer/sleep_timer_event.dart';
 import '../../bloc/sleep_timer/sleep_timer_state.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/radio_theme.dart';
 
 class SleepTimerOverlay extends StatelessWidget {
   const SleepTimerOverlay({super.key});
 
   static Future<void> show(BuildContext context) {
+    final theme = context.radioTheme;
     return showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.background,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -27,6 +29,7 @@ class SleepTimerOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.radioTheme;
     return BlocBuilder<SleepTimerBloc, SleepTimerState>(
       builder: (context, state) {
         return Padding(
@@ -41,9 +44,10 @@ class SleepTimerOverlay extends StatelessWidget {
               // Handle
               Center(
                 child: Container(
-                  width: 40, height: 4,
+                  width: 40,
+                  height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.buttonSecondaryBg,
+                    color: theme.surfaceSecondary,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -55,7 +59,12 @@ class SleepTimerOverlay extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
-                  Text('Sleep Timer', style: AppTypography.appTitle),
+                  Text(
+                    'Sleep Timer',
+                    style: AppTypography.appTitle.copyWith(
+                      color: theme.textPrimary,
+                    ),
+                  ),
                   if (state.isActive) ...[
                     const Spacer(),
                     Text(
@@ -73,7 +82,9 @@ class SleepTimerOverlay extends StatelessWidget {
                 state.isActive
                     ? 'Select a new duration to change the timer.'
                     : 'Audio will fade out when the timer ends.',
-                style: AppTypography.bodySmall,
+                style: AppTypography.bodySmall.copyWith(
+                  color: theme.textSecondary,
+                ),
               ),
               const SizedBox(height: 20),
 
@@ -90,7 +101,9 @@ class SleepTimerOverlay extends StatelessWidget {
                     _FlatChip(
                       label: '$min min',
                       onTap: () {
-                        context.read<SleepTimerBloc>().add(SleepTimerStarted(min));
+                        context
+                            .read<SleepTimerBloc>()
+                            .add(SleepTimerStarted(min));
                         Navigator.pop(context);
                       },
                     ),
@@ -106,7 +119,9 @@ class SleepTimerOverlay extends StatelessWidget {
                 const SizedBox(height: 8),
                 GestureDetector(
                   onTap: () {
-                    context.read<SleepTimerBloc>().add(const SleepTimerCancelled());
+                    context
+                        .read<SleepTimerBloc>()
+                        .add(const SleepTimerCancelled());
                     Navigator.pop(context);
                   },
                   child: SizedBox(
@@ -131,13 +146,17 @@ class SleepTimerOverlay extends StatelessWidget {
   }
 
   void _showCustomInput(BuildContext context) {
+    final theme = context.radioTheme;
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppColors.background,
+        backgroundColor: theme.background,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Custom duration', style: AppTypography.appTitle),
+        title: Text(
+          'Custom duration',
+          style: AppTypography.appTitle.copyWith(color: theme.textPrimary),
+        ),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
@@ -146,24 +165,29 @@ class SleepTimerOverlay extends StatelessWidget {
           autofocus: true,
           decoration: InputDecoration(
             hintText: '1 – 360',
-            hintStyle: AppTypography.bodySmall,
+            hintStyle: AppTypography.bodySmall.copyWith(
+              color: theme.textSecondary,
+            ),
             suffixText: 'min',
             counterText: '',
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AppColors.buttonSecondaryBg),
+              borderSide: BorderSide(color: theme.surfaceSecondary),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AppColors.textPrimary, width: 1.5),
+              borderSide: BorderSide(color: theme.textPrimary, width: 1.5),
             ),
           ),
-          style: AppTypography.body,
+          style: AppTypography.body.copyWith(color: theme.textPrimary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx),
-            child: Text('Cancel', style: AppTypography.body),
+            child: Text(
+              'Cancel',
+              style: AppTypography.body.copyWith(color: theme.textSecondary),
+            ),
           ),
           TextButton(
             onPressed: () {
@@ -176,7 +200,10 @@ class SleepTimerOverlay extends StatelessWidget {
             },
             child: Text(
               'Set',
-              style: AppTypography.body.copyWith(fontWeight: FontWeight.w700),
+              style: AppTypography.body.copyWith(
+                color: theme.textPrimary,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -193,15 +220,19 @@ class _FlatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.radioTheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.buttonSecondaryBg,
+          color: theme.surfaceSecondary,
           borderRadius: BorderRadius.circular(100),
         ),
         child: Center(
-          child: Text(label, style: AppTypography.bandLabel),
+          child: Text(
+            label,
+            style: AppTypography.bandLabel.copyWith(color: theme.textPrimary),
+          ),
         ),
       ),
     );
