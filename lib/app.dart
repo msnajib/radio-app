@@ -37,7 +37,7 @@ class RadioApp extends StatelessWidget {
       ],
       child: MultiBlocProvider(
         providers: [
-          BlocProvider(create: (_) => ThemeCubit()),
+          BlocProvider(create: (_) => ThemeCubit(datasource: hiveDatasource)),
           BlocProvider(create: (_) => DialBloc(datasource: hiveDatasource)),
           BlocProvider(
             create: (_) =>

@@ -30,6 +30,12 @@ class HiveDatasource {
   Future<void> saveDialBand(Band band) =>
       _settingsBox.put('dialBand', band == Band.am ? 'am' : 'fm');
 
+  int getThemeVariantIndex() =>
+      (_settingsBox.get('themeVariant') as int?) ?? 0;
+
+  Future<void> saveThemeVariantIndex(int index) =>
+      _settingsBox.put('themeVariant', index);
+
   List<Favorite> getFavorites() => _favoritesBox.values.toList();
 
   Future<void> addFavorite(Favorite favorite) async {
