@@ -2,7 +2,7 @@ name: radio_app
 description: "Analog radio streaming app with neumorphism UI."
 publish_to: 'none'
 
-version: 0.1.0-alpha.1+5
+version: 0.1.0-alpha.2+6
 
 environment:
   sdk: ^3.9.0
@@ -19,6 +19,7 @@ dependencies:
   http: ^1.2.2
   google_fonts: ^8.0.2
   audioplayers: ^6.1.0
+  geolocator: ^13.0.2
 
 dev_dependencies:
   flutter_test:

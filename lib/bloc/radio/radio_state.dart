@@ -19,6 +19,7 @@ class RadioState extends Equatable {
   });
 
   bool get isPlaying => status == RadioStatus.playing;
+  bool get isPaused => status == RadioStatus.paused;
   bool get isLoading => status == RadioStatus.loading;
 
   RadioState copyWith({

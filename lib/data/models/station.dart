@@ -64,11 +64,11 @@ class Station extends HiveObject {
     );
   }
 
-  Station copyWith({double? fmFrequency, int? amFrequency}) {
+  Station copyWith({String? streamUrl, double? fmFrequency, int? amFrequency}) {
     return Station(
       id: id,
       name: name,
-      streamUrl: streamUrl,
+      streamUrl: streamUrl ?? this.streamUrl,
       codec: codec,
       bitrate: bitrate,
       faviconUrl: faviconUrl,

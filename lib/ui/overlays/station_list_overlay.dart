@@ -59,7 +59,7 @@ class StationListOverlay extends StatelessWidget {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Stations',
+                  'Stasiun',
                   style: AppTypography.appTitle.copyWith(
                     color: theme.textPrimary,
                   ),

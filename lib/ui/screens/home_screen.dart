@@ -3,7 +3,9 @@ import 'dart:developer' as dev;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../bloc/city/city_cubit.dart';
 import '../../bloc/dial/dial_bloc.dart';
+import '../overlays/city_picker_overlay.dart';
 import '../../bloc/dial/dial_event.dart';
 import '../../bloc/dial/dial_state.dart';
 import '../../bloc/radio/radio_bloc.dart';
@@ -18,6 +20,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/radio_theme.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/utils/frequency_mapper.dart';
+import '../../data/models/station.dart';
 import '../../data/repositories/radio_browser_repository.dart';
 import '../overlays/sleep_timer_overlay.dart';
 import '../widgets/circle_dial.dart';
@@ -82,14 +85,19 @@ class _HomeScreenState extends State<HomeScreen> {
               listener: (context, radioState) {
                 final dialBloc = context.read<DialBloc>();
                 final band = dialBloc.state.band;
+                final repo = context.read<RadioBrowserRepository>();
                 final stations = band == Band.fm
-                    ? context.read<RadioBrowserRepository>().fmStationsOnDial(
-                        radioState.allStations,
-                      )
-                    : context.read<RadioBrowserRepository>().amStationsOnDial(
-                        radioState.allStations,
-                      );
+                    ? repo.fmStationsOnDial(radioState.allStations)
+                    : repo.amStationsOnDial(radioState.allStations);
                 dialBloc.add(DialStationsUpdated(stations));
+              },
+            ),
+            // When city changes, reload dial stations filtered by the new city
+            BlocListener<CityCubit, String?>(
+              listener: (context, city) {
+                final repo = context.read<RadioBrowserRepository>();
+                final stations = repo.getDialStations(city: city);
+                context.read<RadioBloc>().add(RadioStationsLoaded(stations));
               },
             ),
             // When band switches, refresh the station list for the new band
@@ -259,7 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Radio', style: AppTypography.appTitle),
+                    const _CityPickerButton(),
                     Row(
                       spacing: 16,
                       mainAxisSize: MainAxisSize.min,
@@ -291,7 +299,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               // ── Sleep timer countdown ───────────────────────────────
               Positioned(
-                top: topPad + 290,
+                top: topPad + 312,
                 left: 0,
                 right: 0,
                 child: const Center(child: _SleepCountdown()),
@@ -308,18 +316,39 @@ class _HomeScreenState extends State<HomeScreen> {
                 bottom: 48,
                 child: _ControlsBar(),
               ),
-
-              // ── Error banner ──────────────────────────────────────
-              const Positioned(
-                left: 24,
-                right: 24,
-                bottom: 116,
-                child: _ErrorBanner(),
-              ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+// ── City picker button ───────────────────────────────────────────────────────
+
+class _CityPickerButton extends StatelessWidget {
+  const _CityPickerButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<CityCubit, String?>(
+      builder: (context, city) {
+        return GestureDetector(
+          onTap: () => CityPickerOverlay.show(context),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(city ?? 'Semua Kota', style: AppTypography.appTitle),
+              const SizedBox(width: 2),
+              Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 20,
+                color: context.radioTheme.textPrimary,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -370,7 +399,7 @@ class _TimerButton extends StatelessWidget {
             color: state.isActive
                 ? AppColors.dialNeedle
                 : context.radioTheme.textPrimary,
-            size: 24,
+            size: 20,
           ),
         );
       },
@@ -390,7 +419,7 @@ class _ThemeButton extends StatelessWidget {
       child: Icon(
         Icons.palette_outlined,
         color: context.radioTheme.textPrimary,
-        size: 24,
+        size: 20,
       ),
     );
   }
@@ -409,19 +438,31 @@ class _SleepCountdown extends StatelessWidget {
           prev.isActive != curr.isActive,
       builder: (context, state) {
         if (!state.isActive) return const SizedBox.shrink();
-        return Row(
-          spacing: 4,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.bedtime_rounded, size: 12, color: AppColors.dialNeedle),
-            Text(
-              state.formattedRemaining,
-              style: AppTypography.bodySmall.copyWith(
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.red.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.red.withValues(alpha: 0.1)),
+          ),
+          child: Row(
+            spacing: 4,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.bedtime_rounded,
+                size: 12,
                 color: AppColors.dialNeedle,
-                fontFeatures: const [FontFeature.tabularFigures()],
               ),
-            ),
-          ],
+              Text(
+                state.formattedRemaining,
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.dialNeedle,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -460,6 +501,7 @@ class _FreqDisplay extends StatelessWidget {
               dialPosition: dialState.position,
               band: dialState.band,
               stationName: radioState.currentStation?.name,
+              hasError: radioState.status == RadioStatus.error,
             );
           },
         );
@@ -483,64 +525,47 @@ class _DialSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<DialBloc, DialState>(
       builder: (context, dialState) {
-        return BlocBuilder<RadioBloc, RadioState>(
-          buildWhen: (prev, curr) =>
-              prev.currentStation != curr.currentStation ||
-              prev.status != curr.status,
-          builder: (context, radioState) {
-            int? playingTickIndex;
-            if (radioState.isPlaying) {
-              final station = radioState.currentStation;
-              if (station != null) {
-                if (dialState.band == Band.fm && station.hasFMFrequency) {
-                  final pos = FrequencyMapper.fmToPosition(
-                    station.fmFrequency!,
-                  );
-                  playingTickIndex = (pos * (FMConstants.totalTicks - 1))
-                      .round();
-                } else if (dialState.band == Band.am &&
-                    station.hasAMFrequency) {
-                  final pos = FrequencyMapper.amToPosition(
-                    station.amFrequency!,
-                  );
-                  playingTickIndex = (pos * (AMConstants.totalTicks - 1))
-                      .round();
-                }
-              }
-            }
-            return SizedBox(
-              height: 500,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // CircleDial — gesture + rotating cross+knobs drawn inside painter
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: CircleDial(
-                      position: dialState.position,
-                      band: dialState.band,
-                      onRotate: (delta) =>
-                          context.read<DialBloc>().add(DialDragged(delta)),
-                      onRelease: (velocityDelta) => context
-                          .read<DialBloc>()
-                          .add(DialReleased(velocityDelta)),
-                      onTick: () => context.read<SfxService>().playTick(),
-                      playingTickIndex: playingTickIndex,
-                    ),
-                  ),
-                  // Needle — fixed at ring top, does not rotate
-                  const Positioned(
-                    bottom: 328,
-                    left: 0,
-                    right: 0,
-                    child: _Needle(),
-                  ),
-                ],
+        int? playingTickIndex;
+        final snapped = dialState.snappedStation;
+        if (snapped != null) {
+          if (dialState.band == Band.fm && snapped.hasFMFrequency) {
+            final pos = FrequencyMapper.fmToPosition(snapped.fmFrequency!);
+            playingTickIndex = (pos * (FMConstants.totalTicks - 1)).round();
+          } else if (dialState.band == Band.am && snapped.hasAMFrequency) {
+            final pos = FrequencyMapper.amToPosition(snapped.amFrequency!);
+            playingTickIndex = (pos * (AMConstants.totalTicks - 1)).round();
+          }
+        }
+        return SizedBox(
+          height: 500,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // CircleDial — gesture + rotating cross+knobs drawn inside painter
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: CircleDial(
+                  position: dialState.position,
+                  band: dialState.band,
+                  onRotate: (delta) =>
+                      context.read<DialBloc>().add(DialDragged(delta)),
+                  onRelease: (velocityDelta) =>
+                      context.read<DialBloc>().add(DialReleased(velocityDelta)),
+                  onTick: () => context.read<SfxService>().playTick(),
+                  playingTickIndex: playingTickIndex,
+                ),
               ),
-            );
-          },
+              // Needle — fixed at ring top, does not rotate
+              const Positioned(
+                bottom: 328,
+                left: 0,
+                right: 0,
+                child: _Needle(),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -636,71 +661,41 @@ class _ControlsBar extends StatelessWidget {
   }
 
   void _navigatePrev(BuildContext context) {
-    final sfx = context.read<SfxService>();
-    sfx.startStaticNoise();
-    sfx.playTick();
-    final dialState = context.read<DialBloc>().state;
-    context.read<RadioBloc>().add(
-      RadioPreviousPressed(dialState.band, dialState.position),
-    );
+    _jumpToAdjacentStation(context, next: false);
   }
 
   void _navigateNext(BuildContext context) {
+    _jumpToAdjacentStation(context, next: true);
+  }
+
+  void _jumpToAdjacentStation(BuildContext context, {required bool next}) {
+    final dialState = context.read<DialBloc>().state;
+    final radioState = context.read<RadioBloc>().state;
+    final repo = context.read<RadioBrowserRepository>();
+
+    final Station? target;
+    if (dialState.band == Band.fm) {
+      final currentFreq =
+          radioState.currentStation?.fmFrequency ??
+          FrequencyMapper.positionToFM(dialState.position);
+      final adj = repo.adjacentFM(radioState.allStations, currentFreq);
+      target = next ? adj.next : adj.prev;
+    } else {
+      final currentFreq =
+          radioState.currentStation?.amFrequency ??
+          FrequencyMapper.positionToAM(dialState.position);
+      final adj = repo.adjacentAM(radioState.allStations, currentFreq);
+      target = next ? adj.next : adj.prev;
+    }
+    if (target == null) return;
+
+    final pos = target.hasFMFrequency
+        ? FrequencyMapper.fmToPosition(target.fmFrequency!)
+        : FrequencyMapper.amToPosition(target.amFrequency!);
+
     final sfx = context.read<SfxService>();
     sfx.startStaticNoise();
     sfx.playTick();
-    final dialState = context.read<DialBloc>().state;
-    context.read<RadioBloc>().add(
-      RadioNextPressed(dialState.band, dialState.position),
-    );
-  }
-}
-
-// ── Error banner ──────────────────────────────────────────────────────────────
-
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<RadioBloc, RadioState>(
-      buildWhen: (prev, curr) =>
-          curr.status != prev.status || curr.errorMessage != prev.errorMessage,
-      builder: (context, state) {
-        if (state.status != RadioStatus.error) return const SizedBox.shrink();
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.dialNeedle.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: AppColors.dialNeedle.withValues(alpha: 0.3),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.wifi_off_rounded,
-                size: 14,
-                color: AppColors.dialNeedle,
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  state.errorMessage ?? 'Stream unavailable',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.dialNeedle,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    context.read<DialBloc>().add(DialJumpedToPosition(pos));
   }
 }

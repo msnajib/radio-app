@@ -13,13 +13,15 @@ import 'radio_state.dart';
 
 class RadioBloc extends Bloc<RadioEvent, RadioState> {
   final RadioBrowserRepository _repository;
+  final String? _initialCity;
   final FlutterRadioPlayer _player = FlutterRadioPlayer();
   StreamSubscription<bool>? _isPlayingSub;
   Timer? _unmuteFadeTimer;
   int _loadToken = 0;
 
-  RadioBloc({required RadioBrowserRepository repository})
+  RadioBloc({required RadioBrowserRepository repository, String? initialCity})
     : _repository = repository,
+      _initialCity = initialCity,
       super(const RadioState()) {
     _isPlayingSub = _player.isPlayingStream.listen(
       (isPlaying) {
@@ -52,7 +54,7 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
   ) async {
     dev.log('[XYZ][RadioBloc] initializing — fetching stations', name: 'Radio');
     try {
-      final stations = await _repository.getIndonesianStations();
+      final stations = await _repository.getIndonesianStations(city: _initialCity);
       dev.log(
         '[XYZ][RadioBloc] loaded ${stations.length} stations',
         name: 'Radio',
@@ -94,38 +96,60 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
     RadioStationSelected event,
     Emitter<RadioState> emit,
   ) async {
-    dev.log(
-      '[XYZ][RadioBloc] station selected: "${event.station.name}" url=${event.station.streamUrl}',
-      name: 'Radio',
-    );
     _unmuteFadeTimer?.cancel();
     _loadToken++;
-    emit(
-      state.copyWith(
-        status: RadioStatus.loading,
-        currentStation: event.station,
-      ),
-    );
+    var station = event.station;
+    emit(state.copyWith(status: RadioStatus.loading, currentStation: station));
+
+    if (station.streamUrl.isEmpty) {
+      dev.log('[XYZ][RadioBloc] resolving stream URL for "${station.name}"', name: 'Radio');
+      final url = await _repository.resolveStreamUrl(station);
+      if (url == null || url.isEmpty) {
+        dev.log('[XYZ][RadioBloc] no stream URL for "${station.name}"', name: 'Radio');
+        emit(state.copyWith(status: RadioStatus.error, errorMessage: 'Stream tidak tersedia'));
+        return;
+      }
+      station = station.copyWith(streamUrl: url);
+      emit(state.copyWith(
+        currentStation: station,
+        allStations: _cacheUrl(state.allStations, station),
+      ));
+      dev.log('[XYZ][RadioBloc] resolved: $url', name: 'Radio');
+    }
+
+    dev.log('[XYZ][RadioBloc] station selected: "${station.name}" url=${station.streamUrl}', name: 'Radio');
     try {
-      await _loadStation(event.station);
+      await _loadStation(station);
     } catch (e) {
       dev.log('[XYZ][RadioBloc] _loadStation error: $e', name: 'Radio');
-      emit(
-        state.copyWith(status: RadioStatus.error, errorMessage: e.toString()),
-      );
+      emit(state.copyWith(status: RadioStatus.error, errorMessage: e.toString()));
     }
   }
 
-  void _onPlay(RadioPlayPressed event, Emitter<RadioState> emit) {
+  Future<void> _onPlay(RadioPlayPressed event, Emitter<RadioState> emit) async {
     dev.log(
       '[XYZ][RadioBloc] PLAY pressed — status=${state.status} station=${state.currentStation?.name}',
       name: 'Radio',
     );
     if (state.currentStation == null) return;
     if (state.status == RadioStatus.initial ||
-        state.status == RadioStatus.stopped) {
+        state.status == RadioStatus.stopped ||
+        state.status == RadioStatus.error) {
       emit(state.copyWith(status: RadioStatus.loading));
-      _loadStation(state.currentStation!);
+      var station = state.currentStation!;
+      if (station.streamUrl.isEmpty) {
+        final url = await _repository.resolveStreamUrl(station);
+        if (url == null || url.isEmpty) {
+          emit(state.copyWith(status: RadioStatus.error, errorMessage: 'Stream tidak tersedia'));
+          return;
+        }
+        station = station.copyWith(streamUrl: url);
+        emit(state.copyWith(
+          currentStation: station,
+          allStations: _cacheUrl(state.allStations, station),
+        ));
+      }
+      _loadStation(station);
     } else {
       emit(state.copyWith(status: RadioStatus.loading));
       _player.play();
@@ -271,6 +295,12 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
     _player.setVolume(1.0); // restore for next play
     emit(state.copyWith(status: RadioStatus.stopped));
     dev.log('[XYZ][RadioBloc] sleep fade out complete', name: 'Radio');
+  }
+
+  List<Station> _cacheUrl(List<Station> stations, Station resolved) {
+    return stations
+        .map((s) => s.id == resolved.id ? resolved : s)
+        .toList();
   }
 
   @override

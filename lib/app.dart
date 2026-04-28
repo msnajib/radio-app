@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'bloc/city/city_cubit.dart';
 import 'bloc/dial/dial_bloc.dart';
 import 'bloc/favorites/favorites_bloc.dart';
 import 'bloc/favorites/favorites_event.dart';
@@ -39,9 +40,13 @@ class RadioApp extends StatelessWidget {
         providers: [
           BlocProvider(create: (_) => ThemeCubit(datasource: hiveDatasource)),
           BlocProvider(create: (_) => DialBloc(datasource: hiveDatasource)),
+          // CityCubit must be created before RadioBloc so initialCity can be read
+          BlocProvider(create: (_) => CityCubit(datasource: hiveDatasource)),
           BlocProvider(
-            create: (_) =>
-                RadioBloc(repository: radioRepo)..add(const RadioInitialized()),
+            create: (context) => RadioBloc(
+              repository: radioRepo,
+              initialCity: context.read<CityCubit>().state,
+            )..add(const RadioInitialized()),
           ),
           BlocProvider(
             create: (_) =>

@@ -80,8 +80,8 @@ class SleepTimerOverlay extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 state.isActive
-                    ? 'Select a new duration to change the timer.'
-                    : 'Audio will fade out when the timer ends.',
+                    ? 'Pilih durasi baru untuk mengubah timer.'
+                    : 'Audio akan fade out saat timer berakhir.',
                 style: AppTypography.bodySmall.copyWith(
                   color: theme.textSecondary,
                 ),
@@ -108,7 +108,7 @@ class SleepTimerOverlay extends StatelessWidget {
                       },
                     ),
                   _FlatChip(
-                    label: 'Custom',
+                    label: 'Kustom',
                     onTap: () => _showCustomInput(context),
                   ),
                 ],
@@ -129,7 +129,7 @@ class SleepTimerOverlay extends StatelessWidget {
                     height: 52,
                     child: Center(
                       child: Text(
-                        'CANCEL TIMER',
+                        'BATALKAN TIMER',
                         style: AppTypography.buttonLabel.copyWith(
                           color: AppColors.dialNeedle,
                         ),
@@ -154,7 +154,7 @@ class SleepTimerOverlay extends StatelessWidget {
         backgroundColor: theme.background,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Custom duration',
+          'Durasi kustom',
           style: AppTypography.appTitle.copyWith(color: theme.textPrimary),
         ),
         content: TextField(
@@ -185,7 +185,7 @@ class SleepTimerOverlay extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx),
             child: Text(
-              'Cancel',
+              'Batal',
               style: AppTypography.body.copyWith(color: theme.textSecondary),
             ),
           ),
@@ -199,7 +199,7 @@ class SleepTimerOverlay extends StatelessWidget {
               }
             },
             child: Text(
-              'Set',
+              'Simpan',
               style: AppTypography.body.copyWith(
                 color: theme.textPrimary,
                 fontWeight: FontWeight.w700,

@@ -62,7 +62,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
                   controller: _controller,
                   style: AppTypography.body.copyWith(color: theme.textPrimary),
                   decoration: InputDecoration(
-                    hintText: 'Search stations…',
+                    hintText: 'Cari stasiun…',
                     hintStyle: AppTypography.bodySmall.copyWith(
                       color: theme.textSecondary,
                     ),
@@ -99,7 +99,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
               Expanded(
                 child: Center(
                   child: Text(
-                    'Search results will appear here',
+                    'Hasil pencarian akan muncul di sini',
                     style: AppTypography.bodySmall.copyWith(
                       color: theme.textSecondary,
                     ),

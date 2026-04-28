@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/frequencies.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/theme/radio_theme.dart';
 import '../../core/utils/formatters.dart';
@@ -8,12 +9,14 @@ class FrequencyDisplay extends StatelessWidget {
   final double dialPosition;
   final Band band;
   final String? stationName;
+  final bool hasError;
 
   const FrequencyDisplay({
     super.key,
     required this.dialPosition,
     required this.band,
     this.stationName,
+    this.hasError = false,
   });
 
   @override
@@ -53,6 +56,26 @@ class FrequencyDisplay extends StatelessWidget {
                     ),
                   ),
           ),
+          if (hasError)
+            Row(
+              spacing: 4,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline_rounded,
+                  size: 10,
+                  color: AppColors.dialNeedle,
+                ),
+                Text(
+                  'Stasiun tidak tersedia'.toUpperCase(),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.dialNeedle,
+                    fontSize: 8,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -163,7 +186,9 @@ class _MarqueeTextState extends State<_MarqueeText>
                     for (int i = 0; i < copies; i++) ...[
                       Text(widget.text, style: widget.style),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: _gap / 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: _gap / 2,
+                        ),
                         child: Text('•', style: widget.style),
                       ),
                     ],

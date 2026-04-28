@@ -30,6 +30,13 @@ class HiveDatasource {
   Future<void> saveDialBand(Band band) =>
       _settingsBox.put('dialBand', band == Band.am ? 'am' : 'fm');
 
+  String? getSelectedCity() => _settingsBox.get('selectedCity') as String?;
+
+  Future<void> saveSelectedCity(String? city) =>
+      city != null
+          ? _settingsBox.put('selectedCity', city)
+          : _settingsBox.delete('selectedCity');
+
   int getThemeVariantIndex() =>
       (_settingsBox.get('themeVariant') as int?) ?? 0;
 
