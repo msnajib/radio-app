@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/sleep_timer/sleep_timer_bloc.dart';
 import '../../bloc/sleep_timer/sleep_timer_event.dart';
 import '../../bloc/sleep_timer/sleep_timer_state.dart';
+import '../../core/services/analytics_service.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/radio_theme.dart';
@@ -13,6 +14,7 @@ class SleepTimerOverlay extends StatelessWidget {
 
   static Future<void> show(BuildContext context) {
     final theme = context.radioTheme;
+    final analytics = context.read<AnalyticsService>();
     return showModalBottomSheet(
       context: context,
       backgroundColor: theme.background,
@@ -20,9 +22,15 @@ class SleepTimerOverlay extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       isScrollControlled: true,
-      builder: (_) => BlocProvider.value(
-        value: context.read<SleepTimerBloc>(),
-        child: const SleepTimerOverlay(),
+      builder: (_) => MultiRepositoryProvider(
+        providers: [
+          RepositoryProvider.value(value: context.read<SleepTimerBloc>()),
+          RepositoryProvider.value(value: analytics),
+        ],
+        child: BlocProvider.value(
+          value: context.read<SleepTimerBloc>(),
+          child: const SleepTimerOverlay(),
+        ),
       ),
     );
   }
@@ -101,9 +109,8 @@ class SleepTimerOverlay extends StatelessWidget {
                     _FlatChip(
                       label: '$min min',
                       onTap: () {
-                        context
-                            .read<SleepTimerBloc>()
-                            .add(SleepTimerStarted(min));
+                        context.read<SleepTimerBloc>().add(SleepTimerStarted(min));
+                        context.read<AnalyticsService>().logSleepTimerSet(min);
                         Navigator.pop(context);
                       },
                     ),
@@ -194,6 +201,7 @@ class SleepTimerOverlay extends StatelessWidget {
               final min = int.tryParse(controller.text);
               if (min != null && min >= 1 && min <= 360) {
                 context.read<SleepTimerBloc>().add(SleepTimerStarted(min));
+                context.read<AnalyticsService>().logSleepTimerSet(min);
                 Navigator.pop(dialogCtx);
                 Navigator.pop(context);
               }

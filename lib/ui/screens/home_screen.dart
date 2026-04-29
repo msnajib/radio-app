@@ -15,6 +15,7 @@ import '../../bloc/sleep_timer/sleep_timer_bloc.dart';
 import '../../bloc/sleep_timer/sleep_timer_state.dart';
 import '../../bloc/theme/theme_cubit.dart';
 import '../../core/constants/frequencies.dart';
+import '../../core/services/analytics_service.dart';
 import '../../core/services/sfx_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/radio_theme.dart';
@@ -100,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 context.read<RadioBloc>().add(RadioStationsLoaded(stations));
               },
             ),
-            // When band switches, refresh the station list for the new band
+            // When band switches, refresh the station list for the new band + analytics
             BlocListener<DialBloc, DialState>(
               listenWhen: (prev, curr) => curr.band != prev.band,
               listener: (context, dialState) {
@@ -110,9 +111,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? repo.fmStationsOnDial(allStations)
                     : repo.amStationsOnDial(allStations);
                 context.read<DialBloc>().add(DialStationsUpdated(stations));
+                context.read<AnalyticsService>().logBandSwitch(
+                  dialState.band == Band.fm ? 'FM' : 'AM',
+                );
               },
             ),
-            // Snap → auto-select station + SFX
+            // Snap → auto-select station + SFX + analytics dial_tune
             BlocListener<DialBloc, DialState>(
               listenWhen: (prev, curr) =>
                   curr.snappedStation != prev.snappedStation,
@@ -120,24 +124,31 @@ class _HomeScreenState extends State<HomeScreen> {
                 final sfx = context.read<SfxService>();
                 if (dialState.snappedStation != null) {
                   final radioBloc = context.read<RadioBloc>();
-                  // Always stop static when snap occurs (even if prev/next already selected this station)
                   sfx.stopStaticNoise();
-                  // Skip RadioStationSelected if already selected (e.g. from prev/next)
-                  if (radioBloc.state.currentStation ==
-                      dialState.snappedStation) {
+                  final station = dialState.snappedStation!;
+                  if (station.hasFMFrequency) {
+                    context.read<AnalyticsService>().logDialTune(
+                      station.fmFrequency!,
+                      'FM',
+                    );
+                  } else if (station.hasAMFrequency) {
+                    context.read<AnalyticsService>().logDialTune(
+                      station.amFrequency!.toDouble(),
+                      'AM',
+                    );
+                  }
+                  if (radioBloc.state.currentStation == station) {
                     dev.log(
-                      '[XYZ][HomeScreen] snap → "${dialState.snappedStation!.name}" already current, skip reselect',
+                      '[XYZ][HomeScreen] snap → "${station.name}" already current, skip reselect',
                       name: 'Home',
                     );
                     return;
                   }
                   dev.log(
-                    '[XYZ][HomeScreen] snap → station "${dialState.snappedStation!.name}" — select station',
+                    '[XYZ][HomeScreen] snap → station "${station.name}" — select station',
                     name: 'Home',
                   );
-                  radioBloc.add(
-                    RadioStationSelected(dialState.snappedStation!),
-                  );
+                  radioBloc.add(RadioStationSelected(station));
                 } else {
                   dev.log(
                     '[XYZ][HomeScreen] snap cleared → start static, stop radio',
@@ -179,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 context.read<SfxService>().startStaticNoise();
               },
             ),
-            // Fade out station_found when stream starts playing
+            // Analytics: station_play
             BlocListener<RadioBloc, RadioState>(
               listenWhen: (prev, curr) => !prev.isPlaying && curr.isPlaying,
               listener: (context, state) {
@@ -188,6 +199,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   name: 'Home',
                 );
                 context.read<SfxService>().fadeOutStationFound();
+                if (state.currentStation != null) {
+                  context.read<AnalyticsService>().logStationPlay(state.currentStation!);
+                }
               },
             ),
             // Loop station_found while buffering

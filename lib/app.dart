@@ -8,6 +8,7 @@ import 'bloc/radio/radio_bloc.dart';
 import 'bloc/radio/radio_event.dart';
 import 'bloc/sleep_timer/sleep_timer_bloc.dart';
 import 'bloc/theme/theme_cubit.dart';
+import 'core/services/analytics_service.dart';
 import 'core/services/sfx_service.dart';
 import 'core/theme/app_theme.dart';
 import 'data/datasources/hive_datasource.dart';
@@ -18,11 +19,13 @@ import 'ui/screens/home_screen.dart';
 class RadioApp extends StatelessWidget {
   final HiveDatasource hiveDatasource;
   final SfxService sfxService;
+  final AnalyticsService analytics;
 
   const RadioApp({
     super.key,
     required this.hiveDatasource,
     required this.sfxService,
+    required this.analytics,
   });
 
   @override
@@ -35,6 +38,7 @@ class RadioApp extends StatelessWidget {
         RepositoryProvider.value(value: radioRepo),
         RepositoryProvider.value(value: favoriteRepo),
         RepositoryProvider.value(value: sfxService),
+        RepositoryProvider.value(value: analytics),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -50,7 +54,7 @@ class RadioApp extends StatelessWidget {
           ),
           BlocProvider(
             create: (_) =>
-                FavoritesBloc(repository: favoriteRepo)
+                FavoritesBloc(repository: favoriteRepo, analytics: analytics)
                   ..add(const FavoritesLoaded()),
           ),
           BlocProvider(create: (_) => SleepTimerBloc()),
