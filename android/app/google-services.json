@@ -1,29 +1,29 @@
 {
-   "project_info": {
-      "project_number": "753404381293",
-      "project_id": "radio-app-3c542",
-      "storage_bucket": "radio-app-3c542.firebasestorage.app"
-   },
-   "client": [
-      {
-         "client_info": {
-            "mobilesdk_app_id": "1:753404381293:android:3649bc7c08dfb75d9ed764",
-            "android_client_info": {
-               "package_name": "com.radionostalgia.app"
-            }
-         },
-         "oauth_client": [],
-         "api_key": [
-            {
-               "current_key": "AIzaSyA7mzkobtOYqwQF4u0Z0seZqSGnwdtGHFI"
-            }
-         ],
-         "services": {
-            "appinvite_service": {
-               "other_platform_oauth_client": []
-            }
-         }
+  "project_info": {
+    "project_number": "753404381293",
+    "project_id": "radio-app-3c542",
+    "storage_bucket": "radio-app-3c542.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:753404381293:android:4c2dd9d8c9b661d19ed764",
+        "android_client_info": {
+          "package_name": "com.najib.radio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA7mzkobtOYqwQF4u0Z0seZqSGnwdtGHFI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
       }
-   ],
-   "configuration_version": "1"
+    }
+  ],
+  "configuration_version": "1"
 }
