@@ -7,9 +7,9 @@
    "client": [
       {
          "client_info": {
-            "mobilesdk_app_id": "1:753404381293:android:4c2dd9d8c9b661d19ed764",
+            "mobilesdk_app_id": "1:753404381293:android:3649bc7c08dfb75d9ed764",
             "android_client_info": {
-               "package_name": "com.najib.radio"
+               "package_name": "com.radionostalgia.app"
             }
          },
          "oauth_client": [],
