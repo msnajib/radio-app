@@ -21,6 +21,19 @@ class RadioBrowserApi {
         .toList();
   }
 
+  Future<List<Station>> searchByUuid(String uuid) async {
+    final uri = Uri.parse(
+      '${AppConstants.radioBrowserBaseUrl}/json/stations/byuuid/$uuid',
+    );
+    final response = await _client.get(uri, headers: _headers);
+    _checkStatus(response);
+    final List<dynamic> json = jsonDecode(response.body) as List<dynamic>;
+    return json
+        .map((e) => Station.fromJson(e as Map<String, dynamic>))
+        .where((s) => s.streamUrl.isNotEmpty)
+        .toList();
+  }
+
   Future<List<Station>> search(String query) async {
     final uri = Uri.parse(
       '${AppConstants.radioBrowserBaseUrl}/json/stations/byname/${Uri.encodeComponent(query)}',

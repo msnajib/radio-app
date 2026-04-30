@@ -35,6 +35,11 @@ class Station extends HiveObject {
   @HiveField(9)
   final int? amFrequency;
 
+  // Transient fields — not persisted in Hive, only populated during API matching.
+  final String? city;        // local station city (set by _localToStation)
+  final String? state;       // Radio Browser province/state (set from API response)
+  final bool lastCheckok;    // Radio Browser lastcheckok field (1=ok)
+
   Station({
     required this.id,
     required this.name,
@@ -46,6 +51,9 @@ class Station extends HiveObject {
     this.country,
     this.fmFrequency,
     this.amFrequency,
+    this.city,
+    this.state,
+    this.lastCheckok = false,
   });
 
   bool get hasFMFrequency => fmFrequency != null;
@@ -61,10 +69,18 @@ class Station extends HiveObject {
       faviconUrl: json['favicon'] as String?,
       tags: (json['tags'] as String? ?? '').split(',').where((t) => t.isNotEmpty).toList(),
       country: json['country'] as String?,
+      state: json['state'] as String?,
+      lastCheckok: (json['lastcheckok'] as num?)?.toInt() == 1,
     );
   }
 
-  Station copyWith({String? streamUrl, double? fmFrequency, int? amFrequency}) {
+  Station copyWith({
+    String? streamUrl,
+    double? fmFrequency,
+    int? amFrequency,
+    String? city,
+    String? state,
+  }) {
     return Station(
       id: id,
       name: name,
@@ -76,6 +92,9 @@ class Station extends HiveObject {
       country: country,
       fmFrequency: fmFrequency ?? this.fmFrequency,
       amFrequency: amFrequency ?? this.amFrequency,
+      city: city ?? this.city,
+      state: state ?? this.state,
+      lastCheckok: lastCheckok,
     );
   }
 }

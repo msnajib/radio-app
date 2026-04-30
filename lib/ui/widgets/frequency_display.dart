@@ -10,6 +10,7 @@ class FrequencyDisplay extends StatelessWidget {
   final Band band;
   final String? stationName;
   final bool hasError;
+  final bool isWeakSignal;
 
   const FrequencyDisplay({
     super.key,
@@ -17,6 +18,7 @@ class FrequencyDisplay extends StatelessWidget {
     required this.band,
     this.stationName,
     this.hasError = false,
+    this.isWeakSignal = false,
   });
 
   @override
@@ -56,6 +58,22 @@ class FrequencyDisplay extends StatelessWidget {
                     ),
                   ),
           ),
+          if (isWeakSignal)
+            Row(
+              spacing: 4,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.wifi_1_bar_rounded, size: 10, color: Colors.orange),
+                Text(
+                  'Sinyal lemah — tap Play'.toUpperCase(),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: Colors.orange,
+                    fontSize: 8,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           if (hasError)
             Row(
               spacing: 4,

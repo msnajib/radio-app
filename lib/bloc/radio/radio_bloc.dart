@@ -6,6 +6,7 @@ import 'package:flutter_radio_player/flutter_radio_player.dart';
 
 import '../../core/constants/frequencies.dart';
 import '../../core/utils/frequency_mapper.dart';
+import '../../data/models/match_result.dart';
 import '../../data/models/station.dart';
 import '../../data/repositories/radio_browser_repository.dart';
 import 'radio_event.dart';
@@ -98,31 +99,53 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
   ) async {
     _unmuteFadeTimer?.cancel();
     _loadToken++;
-    var station = event.station;
-    emit(state.copyWith(status: RadioStatus.loading, currentStation: station));
+    final local = event.station;
+    emit(state.copyWith(status: RadioStatus.loading, currentStation: local));
 
-    if (station.streamUrl.isEmpty) {
-      dev.log('[XYZ][RadioBloc] resolving stream URL for "${station.name}"', name: 'Radio');
-      final url = await _repository.resolveStreamUrl(station);
-      if (url == null || url.isEmpty) {
-        dev.log('[XYZ][RadioBloc] no stream URL for "${station.name}"', name: 'Radio');
+    if (local.streamUrl.isEmpty) {
+      dev.log('[XYZ][RadioBloc] matching "${local.name}"', name: 'Radio');
+      final match = await _repository.matchStation(local);
+      dev.log(
+        '[XYZ][RadioBloc] match result: score=${match.score} strength=${match.strength} source=${match.source}',
+        name: 'Radio',
+      );
+
+      if (match.strength == SignalStrength.none) {
         emit(state.copyWith(status: RadioStatus.error, errorMessage: 'Stream tidak tersedia'));
         return;
       }
-      station = station.copyWith(streamUrl: url);
+
+      final station = match.playableStation;
+
+      if (match.strength == SignalStrength.weak) {
+        dev.log('[XYZ][RadioBloc] weak signal → "${station.name}" (score=${match.score})', name: 'Radio');
+        emit(state.copyWith(
+          status: RadioStatus.weakSignal,
+          currentStation: station,
+          allStations: _cacheUrl(state.allStations, station),
+        ));
+        return;
+      }
+
+      // strong → auto-play
       emit(state.copyWith(
         currentStation: station,
         allStations: _cacheUrl(state.allStations, station),
       ));
-      dev.log('[XYZ][RadioBloc] resolved: $url', name: 'Radio');
-    }
-
-    dev.log('[XYZ][RadioBloc] station selected: "${station.name}" url=${station.streamUrl}', name: 'Radio');
-    try {
-      await _loadStation(station);
-    } catch (e) {
-      dev.log('[XYZ][RadioBloc] _loadStation error: $e', name: 'Radio');
-      emit(state.copyWith(status: RadioStatus.error, errorMessage: e.toString()));
+      dev.log('[XYZ][RadioBloc] strong match → "${match.apiStation!.name}" url=${station.streamUrl}', name: 'Radio');
+      try {
+        await _loadStation(station);
+      } catch (e) {
+        dev.log('[XYZ][RadioBloc] _loadStation error: $e', name: 'Radio');
+        emit(state.copyWith(status: RadioStatus.error, errorMessage: e.toString()));
+      }
+    } else {
+      dev.log('[XYZ][RadioBloc] station already has URL: "${local.name}"', name: 'Radio');
+      try {
+        await _loadStation(local);
+      } catch (e) {
+        emit(state.copyWith(status: RadioStatus.error, errorMessage: e.toString()));
+      }
     }
   }
 
@@ -134,16 +157,17 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
     if (state.currentStation == null) return;
     if (state.status == RadioStatus.initial ||
         state.status == RadioStatus.stopped ||
-        state.status == RadioStatus.error) {
+        state.status == RadioStatus.error ||
+        state.status == RadioStatus.weakSignal) {
       emit(state.copyWith(status: RadioStatus.loading));
       var station = state.currentStation!;
       if (station.streamUrl.isEmpty) {
-        final url = await _repository.resolveStreamUrl(station);
-        if (url == null || url.isEmpty) {
+        final match = await _repository.matchStation(station);
+        if (match.apiStation == null) {
           emit(state.copyWith(status: RadioStatus.error, errorMessage: 'Stream tidak tersedia'));
           return;
         }
-        station = station.copyWith(streamUrl: url);
+        station = match.playableStation;
         emit(state.copyWith(
           currentStation: station,
           allStations: _cacheUrl(state.allStations, station),

@@ -1,9 +1,33 @@
 import 'dart:async' show unawaited;
+import 'dart:developer' as dev;
 
+import '../../core/constants/manual_overrides.dart';
+import '../../core/constants/station_aliases.dart';
 import '../../core/constants/stations.dart';
-import '../../core/utils/station_frequency_parser.dart';
 import '../datasources/radio_browser_api.dart';
+import '../models/match_result.dart';
 import '../models/station.dart';
+
+// ── Province/state names from Radio Browser for each local city ────────────
+const _kCityProvinces = <String, List<String>>{
+  'jakarta':     ['dki jakarta', 'jakarta', 'banten'],
+  'surabaya':    ['jawa timur', 'east java', 'java timur'],
+  'bandung':     ['jawa barat', 'west java', 'java barat'],
+  'semarang':    ['jawa tengah', 'central java', 'java tengah'],
+  'yogyakarta':  ['daerah istimewa yogyakarta', 'yogyakarta', 'di yogyakarta'],
+  'medan':       ['sumatera utara', 'north sumatra', 'sumatera utara'],
+  'makassar':    ['sulawesi selatan', 'south sulawesi'],
+  'bali':        ['bali'],
+  'malang':      ['jawa timur', 'east java'],
+  'solo':        ['jawa tengah', 'central java'],
+};
+
+class _CacheEntry {
+  final MatchResult result;
+  final DateTime expires;
+  _CacheEntry(this.result, this.expires);
+  bool get isValid => DateTime.now().isBefore(expires);
+}
 
 class RadioBrowserRepository {
   final RadioBrowserApi _api;
@@ -11,9 +35,10 @@ class RadioBrowserRepository {
       : _api = api ?? RadioBrowserApi();
 
   Future<List<Station>>? _apiFetch;
+  final _cache = <String, _CacheEntry>{};
 
-  // Returns hardcoded stations, optionally filtered by city (null = all cities).
-  // Instant — no API call. Use this for dial population.
+  // ── Public API ─────────────────────────────────────────────────────────────
+
   List<Station> getDialStations({String? city}) {
     final source = city != null
         ? allStations.where((s) => s.city == city)
@@ -21,83 +46,229 @@ class RadioBrowserRepository {
     return source.map(_localToStation).toList();
   }
 
-  // Same as getDialStations but async — also warms the API cache in background.
   Future<List<Station>> getIndonesianStations({String? city}) async {
-    unawaited(_getApiStations()); // warm cache without blocking
+    unawaited(_getApiStations());
     return getDialStations(city: city);
   }
 
-  // Resolves a playable stream URL for a station.
-  // 1. Frequency match against cached API batch (most reliable).
-  // 2. Name match against cached API batch.
-  // 3. Fallback: search API by station name.
-  Future<String?> resolveStreamUrl(Station station) async {
+  Future<List<Station>> search(String query) => _api.search(query);
+
+  // Core matching entry point. Returns a MatchResult with signal strength.
+  Future<MatchResult> matchStation(Station local) async {
+    final cacheKey = _cacheKey(local);
+    final cached = _cache[cacheKey];
+    if (cached != null && cached.isValid) {
+      dev.log('[Match] cache hit for "$cacheKey" score=${cached.result.score}', name: 'Match');
+      return cached.result;
+    }
+
+    // Step 1 — Manual override
+    final overrideKey = _overrideKey(local);
+    final manualUuid = kManualOverrides[overrideKey];
+    if (manualUuid != null) {
+      final api = await _findByUuid(manualUuid);
+      if (api != null) {
+        final result = MatchResult(
+          localStation: local,
+          apiStation: api,
+          score: 100,
+          strength: SignalStrength.strong,
+          source: 'manual',
+        );
+        _cache[cacheKey] = _CacheEntry(result, _ttl(const Duration(days: 7)));
+        dev.log('[Match] manual override → "${api.name}" uuid=$manualUuid', name: 'Match');
+        return result;
+      }
+    }
+
+    // Step 2 — Auto matching with scoring
     final apiStations = await _getApiStations();
+    final scored = <({Station api, int score})>[];
+    for (final api in apiStations) {
+      final s = _score(local, api);
+      if (s > 0) scored.add((api: api, score: s));
+    }
+    scored.sort((a, b) => b.score.compareTo(a.score));
 
-    final byFreq = _findByFrequency(station, apiStations);
-    if (byFreq != null) return byFreq.streamUrl;
+    if (scored.isEmpty) {
+      final result = MatchResult(
+        localStation: local,
+        apiStation: null,
+        score: 0,
+        strength: SignalStrength.none,
+        source: 'none',
+      );
+      _cache[cacheKey] = _CacheEntry(result, _ttl(const Duration(hours: 12)));
+      dev.log('[Match] no candidates for "${local.name}"', name: 'Match');
+      return result;
+    }
 
-    final byName = _findBestMatch(station.name, apiStations);
-    if (byName != null) return byName.streamUrl;
+    final best = scored.first;
+    dev.log(
+      '[Match] best="${best.api.name}" score=${best.score} for "${local.name}"',
+      name: 'Match',
+    );
 
+    final strength = best.score >= 80
+        ? SignalStrength.strong
+        : best.score >= 65
+            ? SignalStrength.weak
+            : SignalStrength.none;
+
+    final result = MatchResult(
+      localStation: local,
+      apiStation: strength != SignalStrength.none ? best.api : null,
+      score: best.score,
+      strength: strength,
+      source: 'auto',
+    );
+    final ttl = strength == SignalStrength.none
+        ? const Duration(hours: 12)
+        : const Duration(days: 1);
+    _cache[cacheKey] = _CacheEntry(result, _ttl(ttl));
+    return result;
+  }
+
+  // ── Scoring ────────────────────────────────────────────────────────────────
+
+  int _score(Station local, Station api) {
+    double score = 0;
+
+    // Name similarity: 0-45
+    final sim = _nameSimilarity(local.name, api.name);
+    score += sim * 45;
+
+    // Alias bonus: +20
+    if (_hasAliasMatch(local.name, api.name)) score += 20;
+
+    // City/province match: +25 or -25
+    final cityScore = _cityScore(local, api);
+    score += cityScore;
+
+    // Country Indonesia: +10
+    if (_isIndonesia(api)) score += 10;
+
+    // Active stream: +10 or -20
+    if (api.lastCheckok) {
+      score += 10;
+    } else {
+      score -= 20;
+    }
+
+    // Bitrate bonus: +5 (>=64kbps is reasonable quality)
+    if (api.bitrate >= 64) score += 5;
+
+    return score.round().clamp(0, 100);
+  }
+
+  // Dice coefficient on normalized word sets. Returns 0.0–1.0.
+  double _nameSimilarity(String a, String b) {
+    final wordsA = _normalizedWords(a).toSet();
+    final wordsB = _normalizedWords(b).toSet();
+    if (wordsA.isEmpty || wordsB.isEmpty) return 0.0;
+    final intersection = wordsA.intersection(wordsB).length;
+    return (2 * intersection) / (wordsA.length + wordsB.length);
+  }
+
+  Set<String> _normalizedWords(String name) {
+    return name
+        .toLowerCase()
+        .replaceAll(RegExp(r'\b(fm|am|radio)\b'), ' ')
+        .replaceAll(RegExp(r'[^a-z0-9]'), ' ')
+        .split(' ')
+        .where((w) => w.length >= 2)
+        .toSet();
+  }
+
+  bool _hasAliasMatch(String localName, String apiName) {
+    final normLocal = _normalizeName(localName);
+    final normApi = apiName.toLowerCase();
+    final aliases = kStationAliases[normLocal];
+    if (aliases == null) return false;
+    return aliases.any((alias) => normApi.contains(alias));
+  }
+
+  int _cityScore(Station local, Station api) {
+    final city = local.city?.toLowerCase();
+    if (city == null) return 0;
+    final provinces = _kCityProvinces[city];
+    if (provinces == null) return 0;
+    final apiState = (api.state ?? '').toLowerCase();
+    if (apiState.isEmpty) return 0;
+    return provinces.any((p) => apiState.contains(p) || p.contains(apiState))
+        ? 25
+        : -25;
+  }
+
+  bool _isIndonesia(Station api) {
+    final c = (api.country ?? '').toLowerCase();
+    return c.contains('indonesia') || c.contains('id');
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  String _cacheKey(Station local) {
+    final city = (local.city ?? 'unknown').toLowerCase();
+    final freq = local.fmFrequency?.toStringAsFixed(1) ??
+        local.amFrequency?.toString() ??
+        '0';
+    return '$city:$freq:${_normalizeName(local.name)}';
+  }
+
+  String _overrideKey(Station local) {
+    final city = (local.city ?? '').toLowerCase();
+    final freq = local.fmFrequency?.toStringAsFixed(1) ??
+        local.amFrequency?.toString() ??
+        '0';
+    return '$city:$freq:${_normalizeName(local.name)}';
+  }
+
+  String _normalizeName(String name) {
+    return name
+        .toLowerCase()
+        .replaceAll(RegExp(r'\b(fm|am|radio)\b'), '')
+        .replaceAll(RegExp(r'[^a-z0-9]'), ' ')
+        .trim()
+        .replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  DateTime _ttl(Duration duration) => DateTime.now().add(duration);
+
+  Future<Station?> _findByUuid(String uuid) async {
     try {
-      final results = await _api.search(station.name);
-      final byFreqSearch = _findByFrequency(station, results);
-      if (byFreqSearch != null) return byFreqSearch.streamUrl;
-      return _findBestMatch(station.name, results)?.streamUrl;
+      final results = await _api.searchByUuid(uuid);
+      return results.firstOrNull;
     } catch (_) {
       return null;
     }
   }
 
-  // Matches an API station by parsing the frequency embedded in its name.
-  // FM tolerance: ±0.15 MHz (handles "101" matching 101.0).
-  // AM tolerance: ±10 kHz.
-  Station? _findByFrequency(Station target, List<Station> candidates) {
-    if (target.hasFMFrequency) {
-      final targetFreq = target.fmFrequency!;
-      Station? best;
-      double bestDist = 0.16;
-      for (final s in candidates) {
-        final parsed = parseFrequencyFromName(s.name);
-        if (parsed.fm != null) {
-          final dist = (parsed.fm! - targetFreq).abs();
-          if (dist < bestDist) {
-            bestDist = dist;
-            best = s;
-          }
-        }
-      }
-      return best;
-    }
-    if (target.hasAMFrequency) {
-      final targetFreq = target.amFrequency!;
-      for (final s in candidates) {
-        final parsed = parseFrequencyFromName(s.name);
-        if (parsed.am != null && (parsed.am! - targetFreq).abs() <= 10) {
-          return s;
-        }
-      }
-    }
-    return null;
+  Future<List<Station>> _getApiStations() {
+    _apiFetch ??= _api.fetchByCountry('indonesia').catchError((e) {
+      _apiFetch = null;
+      return <Station>[];
+    });
+    return _apiFetch!;
   }
 
-  // Search for stations via API (used by search overlay).
-  Future<List<Station>> search(String query) async {
-    return _api.search(query);
-  }
+  Station _localToStation(LocalStation local) => Station(
+        id: 'local_${local.city.toLowerCase()}_${local.frequency}',
+        name: local.name,
+        streamUrl: '',
+        fmFrequency: local.fmFrequency,
+        amFrequency: local.amFrequency,
+        city: local.city,
+      );
 
-  // Returns only FM stations, sorted by frequency.
-  List<Station> fmStationsOnDial(List<Station> all) {
-    return all.where((s) => s.hasFMFrequency).toList()
-      ..sort((a, b) => a.fmFrequency!.compareTo(b.fmFrequency!));
-  }
+  // ── Dial navigation helpers ────────────────────────────────────────────────
 
-  // Returns only AM stations, sorted by frequency.
-  List<Station> amStationsOnDial(List<Station> all) {
-    return all.where((s) => s.hasAMFrequency).toList()
-      ..sort((a, b) => a.amFrequency!.compareTo(b.amFrequency!));
-  }
+  List<Station> fmStationsOnDial(List<Station> all) =>
+      all.where((s) => s.hasFMFrequency).toList()
+        ..sort((a, b) => a.fmFrequency!.compareTo(b.fmFrequency!));
+
+  List<Station> amStationsOnDial(List<Station> all) =>
+      all.where((s) => s.hasAMFrequency).toList()
+        ..sort((a, b) => a.amFrequency!.compareTo(b.amFrequency!));
 
   Station? snapFM(List<Station> stations, double freqMHz, double threshold) {
     Station? nearest;
@@ -154,52 +325,6 @@ class RadioBrowserRepository {
     }
     return (prev: prev ?? sorted.last, next: next ?? sorted.first);
   }
-
-  Future<List<Station>> _getApiStations() {
-    _apiFetch ??= _api.fetchByCountry('indonesia').catchError((e) {
-      _apiFetch = null; // allow retry on next call if fetch failed
-      return <Station>[];
-    });
-    return _apiFetch!;
-  }
-
-  // Finds the API station whose name best matches the target.
-  Station? _findBestMatch(String targetName, List<Station> candidates) {
-    final target = _normalize(targetName);
-    if (target.isEmpty) return null;
-
-    for (final s in candidates) {
-      if (_normalize(s.name) == target) return s;
-    }
-
-    if (target.length >= 4) {
-      for (final s in candidates) {
-        final n = _normalize(s.name);
-        if (n.length >= 4 && (n.contains(target) || target.contains(n))) {
-          return s;
-        }
-      }
-    }
-
-    return null;
-  }
-
-  String _normalize(String name) {
-    return name
-        .toLowerCase()
-        .replaceAll(RegExp(r'\b(fm|am|radio)\b'), '')
-        .replaceAll(RegExp(r'[^a-z0-9]'), ' ')
-        .trim()
-        .replaceAll(RegExp(r'\s+'), ' ');
-  }
-
-  Station _localToStation(LocalStation local) => Station(
-        id: 'local_${local.city.toLowerCase()}_${local.frequency}',
-        name: local.name,
-        streamUrl: '',
-        fmFrequency: local.fmFrequency,
-        amFrequency: local.amFrequency,
-      );
 
   void dispose() => _api.dispose();
 }

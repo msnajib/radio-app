@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 import '../../data/models/station.dart';
 
-enum RadioStatus { initial, loading, playing, paused, stopped, error }
+enum RadioStatus { initial, loading, playing, paused, stopped, error, weakSignal }
 
 class RadioState extends Equatable {
   final RadioStatus status;
@@ -21,6 +21,7 @@ class RadioState extends Equatable {
   bool get isPlaying => status == RadioStatus.playing;
   bool get isPaused => status == RadioStatus.paused;
   bool get isLoading => status == RadioStatus.loading;
+  bool get isWeakSignal => status == RadioStatus.weakSignal;
 
   RadioState copyWith({
     RadioStatus? status,

@@ -516,6 +516,7 @@ class _FreqDisplay extends StatelessWidget {
               band: dialState.band,
               stationName: radioState.currentStation?.name,
               hasError: radioState.status == RadioStatus.error,
+              isWeakSignal: radioState.isWeakSignal,
             );
           },
         );
