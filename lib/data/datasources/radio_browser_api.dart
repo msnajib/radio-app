@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../core/constants/app_constants.dart';
+import '../models/radio_browser_station.dart';
 import '../models/station.dart';
 
 class RadioBrowserApi {
@@ -8,7 +9,7 @@ class RadioBrowserApi {
 
   RadioBrowserApi({http.Client? client}) : _client = client ?? http.Client();
 
-  Future<List<Station>> fetchByCountry(String country) async {
+  Future<List<RadioBrowserStation>> fetchByCountry(String country) async {
     final uri = Uri.parse(
       '${AppConstants.radioBrowserBaseUrl}/json/stations/bycountry/$country',
     );
@@ -16,12 +17,12 @@ class RadioBrowserApi {
     _checkStatus(response);
     final List<dynamic> json = jsonDecode(response.body) as List<dynamic>;
     return json
-        .map((e) => Station.fromJson(e as Map<String, dynamic>))
-        .where((s) => s.streamUrl.isNotEmpty)
+        .map((e) => RadioBrowserStation.fromJson(e as Map<String, dynamic>))
+        .where((s) => s.playableUrl != null)
         .toList();
   }
 
-  Future<List<Station>> searchByUuid(String uuid) async {
+  Future<List<RadioBrowserStation>> searchByUuid(String uuid) async {
     final uri = Uri.parse(
       '${AppConstants.radioBrowserBaseUrl}/json/stations/byuuid/$uuid',
     );
@@ -29,11 +30,12 @@ class RadioBrowserApi {
     _checkStatus(response);
     final List<dynamic> json = jsonDecode(response.body) as List<dynamic>;
     return json
-        .map((e) => Station.fromJson(e as Map<String, dynamic>))
-        .where((s) => s.streamUrl.isNotEmpty)
+        .map((e) => RadioBrowserStation.fromJson(e as Map<String, dynamic>))
+        .where((s) => s.playableUrl != null)
         .toList();
   }
 
+  // Returns Station (for UI search overlay).
   Future<List<Station>> search(String query) async {
     final uri = Uri.parse(
       '${AppConstants.radioBrowserBaseUrl}/json/stations/byname/${Uri.encodeComponent(query)}',

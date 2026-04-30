@@ -11,6 +11,7 @@ class FrequencyDisplay extends StatelessWidget {
   final String? stationName;
   final bool hasError;
   final bool isWeakSignal;
+  final bool isNoStream;
 
   const FrequencyDisplay({
     super.key,
@@ -19,6 +20,7 @@ class FrequencyDisplay extends StatelessWidget {
     this.stationName,
     this.hasError = false,
     this.isWeakSignal = false,
+    this.isNoStream = false,
   });
 
   @override
@@ -63,7 +65,11 @@ class FrequencyDisplay extends StatelessWidget {
               spacing: 4,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.wifi_1_bar_rounded, size: 10, color: Colors.orange),
+                Icon(
+                  Icons.signal_wifi_statusbar_connected_no_internet_4_rounded,
+                  size: 10,
+                  color: Colors.orange,
+                ),
                 Text(
                   'Sinyal lemah — tap Play'.toUpperCase(),
                   style: AppTypography.bodySmall.copyWith(
@@ -74,7 +80,7 @@ class FrequencyDisplay extends StatelessWidget {
                 ),
               ],
             ),
-          if (hasError)
+          if (hasError || isNoStream)
             Row(
               spacing: 4,
               mainAxisAlignment: MainAxisAlignment.center,

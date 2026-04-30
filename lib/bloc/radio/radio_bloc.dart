@@ -111,7 +111,11 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
       );
 
       if (match.strength == SignalStrength.none) {
-        emit(state.copyWith(status: RadioStatus.error, errorMessage: 'Stream tidak tersedia'));
+        dev.log('[XYZ][RadioBloc] noStream → "${local.name}" (score=${match.score})', name: 'Radio');
+        emit(state.copyWith(
+          status: RadioStatus.noStream,
+          currentStation: local, // always show local station name
+        ));
         return;
       }
 
@@ -155,6 +159,7 @@ class RadioBloc extends Bloc<RadioEvent, RadioState> {
       name: 'Radio',
     );
     if (state.currentStation == null) return;
+    if (state.status == RadioStatus.noStream) return; // no stream available, do nothing
     if (state.status == RadioStatus.initial ||
         state.status == RadioStatus.stopped ||
         state.status == RadioStatus.error ||

@@ -1,26 +1,165 @@
 import 'dart:async' show unawaited;
 import 'dart:developer' as dev;
+import 'dart:isolate';
 
 import '../../core/constants/manual_overrides.dart';
 import '../../core/constants/station_aliases.dart';
 import '../../core/constants/stations.dart';
 import '../datasources/radio_browser_api.dart';
 import '../models/match_result.dart';
+import '../models/radio_browser_station.dart';
 import '../models/station.dart';
 
-// ── Province/state names from Radio Browser for each local city ────────────
-const _kCityProvinces = <String, List<String>>{
-  'jakarta':     ['dki jakarta', 'jakarta', 'banten'],
-  'surabaya':    ['jawa timur', 'east java', 'java timur'],
-  'bandung':     ['jawa barat', 'west java', 'java barat'],
-  'semarang':    ['jawa tengah', 'central java', 'java tengah'],
-  'yogyakarta':  ['daerah istimewa yogyakarta', 'yogyakarta', 'di yogyakarta'],
-  'medan':       ['sumatera utara', 'north sumatra', 'sumatera utara'],
-  'makassar':    ['sulawesi selatan', 'south sulawesi'],
-  'bali':        ['bali'],
-  'malang':      ['jawa timur', 'east java'],
-  'solo':        ['jawa tengah', 'central java'],
-};
+// ── Top-level helpers — accessible from spawned isolate ───────────────────────
+
+// Pre-compiled once per isolate; avoids recompilation on every _normText call.
+final _reKeywords = RegExp(r'\b(fm|am|radio|stream|online|indonesia)\b');
+final _reCities = RegExp(
+  r'\b(jakarta|surabaya|semarang|bandung|yogyakarta|jogja|yogya|medan)\b',
+);
+final _reNonAlpha = RegExp(r'[^a-z0-9 ]');
+final _reSpaces = RegExp(r'\s+');
+final _reAliasStrip = RegExp(r'\b(fm|am|radio)\b');
+
+const _kKnownCities = [
+  'jakarta', 'surabaya', 'semarang', 'bandung',
+  'yogyakarta', 'jogja', 'yogya', 'medan',
+];
+
+String _normText(String v) => v
+    .toLowerCase()
+    .replaceAll(_reKeywords, ' ')
+    .replaceAll(_reCities, ' ')
+    .replaceAll(_reNonAlpha, ' ')
+    .replaceAll(_reSpaces, ' ')
+    .trim();
+
+List<String> _bigrams(String s) =>
+    List.generate(s.length - 1, (i) => s.substring(i, i + 2));
+
+double _dice(String a, String b) {
+  if (a.isEmpty || b.isEmpty) return 0.0;
+  if (a == b) return 1.0;
+  if (a.length < 2 || b.length < 2) return 0.0;
+  final ba = _bigrams(a);
+  final bb = _bigrams(b).toList();
+  int inter = 0;
+  for (final bg in ba) {
+    final idx = bb.indexOf(bg);
+    if (idx != -1) {
+      inter++;
+      bb.removeAt(idx);
+    }
+  }
+  return (2.0 * inter) / (ba.length + bb.length + inter - inter);
+}
+
+// Scores one candidate (serialized as Map) against local station fields.
+// All strings are already lowercased/normalized where noted.
+double _scorePrimitive(
+  String localNameNorm, // pre-normalized
+  String localCity, // pre-normalized (yogya→yogyakarta, etc.)
+  List<String> localAliases, // pre-lowercased alias strings
+  Map<String, Object?> c, // serialized RadioBrowserStation
+) {
+  double score = 0;
+
+  final apiName = (c['name'] as String?) ?? '';
+  final apiNameNorm = _normText(apiName);
+  final apiTextNorm = _normText([
+    apiName,
+    (c['tags'] as String?) ?? '',
+    (c['state'] as String?) ?? '',
+    (c['country'] as String?) ?? '',
+    (c['homepage'] as String?) ?? '',
+    (c['url'] as String?) ?? '',
+  ].join(' '));
+  final apiTextRaw = [
+    apiName,
+    (c['tags'] as String?) ?? '',
+    (c['state'] as String?) ?? '',
+    (c['country'] as String?) ?? '',
+  ].join(' ').toLowerCase();
+
+  // Dice bigrams on normalized names (0–45)
+  score += _dice(localNameNorm, apiNameNorm) * 45;
+
+  // Alias bonus (+20)
+  for (final alias in localAliases) {
+    if (apiTextNorm.contains(alias)) {
+      score += 20;
+      break;
+    }
+  }
+
+  // City match via raw text (+25 or -25)
+  if (localCity.isNotEmpty) {
+    bool matched = apiTextRaw.contains(localCity);
+    if (localCity == 'yogyakarta') {
+      matched = matched ||
+          apiTextRaw.contains('jogja') ||
+          apiTextRaw.contains('yogya');
+    }
+    if (matched) {
+      score += 25;
+    } else {
+      for (final other in _kKnownCities) {
+        final norm =
+            (other == 'jogja' || other == 'yogya') ? 'yogyakarta' : other;
+        if (norm != localCity && apiTextRaw.contains(other)) {
+          score -= 25;
+          break;
+        }
+      }
+    }
+  }
+
+  // Country Indonesia (+10)
+  if (((c['countryCode'] as String?) ?? '').toUpperCase() == 'ID') score += 10;
+
+  // Stream health (+10 active / -20 dead)
+  if ((c['lastCheckOk'] as int?) == 1) {
+    score += 10;
+  } else {
+    score -= 20;
+  }
+
+  // Bitrate (+5 if >= 64 kbps)
+  if (((c['bitrate'] as int?) ?? 0) >= 64) score += 5;
+
+  // Missing playable URL (-40)
+  final url = c['url'] as String?;
+  if (url == null || url.isEmpty) score -= 40;
+
+  return score.clamp(0.0, 100.0);
+}
+
+// Entry point for Isolate.run — must be top-level.
+({int bestIndex, double bestScore}) _runScoringIsolate((
+  String localNameNorm,
+  String localCity,
+  List<String> localAliases,
+  List<Map<String, Object?>> candidates,
+) args) {
+  final (localNameNorm, localCity, localAliases, candidates) = args;
+  int bestIndex = -1;
+  double bestScore = 0;
+  for (int i = 0; i < candidates.length; i++) {
+    final s = _scorePrimitive(
+      localNameNorm,
+      localCity,
+      localAliases,
+      candidates[i],
+    );
+    if (s > bestScore) {
+      bestScore = s;
+      bestIndex = i;
+    }
+  }
+  return (bestIndex: bestIndex, bestScore: bestScore);
+}
+
+// ── Cache ──────────────────────────────────────────────────────────────────────
 
 class _CacheEntry {
   final MatchResult result;
@@ -29,15 +168,17 @@ class _CacheEntry {
   bool get isValid => DateTime.now().isBefore(expires);
 }
 
+// ── Repository ─────────────────────────────────────────────────────────────────
+
 class RadioBrowserRepository {
   final RadioBrowserApi _api;
   RadioBrowserRepository({RadioBrowserApi? api})
-      : _api = api ?? RadioBrowserApi();
+    : _api = api ?? RadioBrowserApi();
 
-  Future<List<Station>>? _apiFetch;
+  Future<List<RadioBrowserStation>>? _apiFetch;
   final _cache = <String, _CacheEntry>{};
 
-  // ── Public API ─────────────────────────────────────────────────────────────
+  // ── Public API ───────────────────────────────────────────────────────────────
 
   List<Station> getDialStations({String? city}) {
     final source = city != null
@@ -53,72 +194,89 @@ class RadioBrowserRepository {
 
   Future<List<Station>> search(String query) => _api.search(query);
 
-  // Core matching entry point. Returns a MatchResult with signal strength.
+  // Core matching entry point.
   Future<MatchResult> matchStation(Station local) async {
     final cacheKey = _cacheKey(local);
     final cached = _cache[cacheKey];
     if (cached != null && cached.isValid) {
-      dev.log('[Match] cache hit for "$cacheKey" score=${cached.result.score}', name: 'Match');
+      dev.log(
+        '[Match] cache hit "$cacheKey" score=${cached.result.score}',
+        name: 'Match',
+      );
       return cached.result;
     }
 
     // Step 1 — Manual override
-    final overrideKey = _overrideKey(local);
-    final manualUuid = kManualOverrides[overrideKey];
+    final manualUuid = kManualOverrides[_overrideKey(local)];
     if (manualUuid != null) {
       final api = await _findByUuid(manualUuid);
-      if (api != null) {
+      if (api != null && api.isStreamHealthy) {
         final result = MatchResult(
           localStation: local,
-          apiStation: api,
+          apiStation: _toStation(api, local),
           score: 100,
           strength: SignalStrength.strong,
           source: 'manual',
         );
         _cache[cacheKey] = _CacheEntry(result, _ttl(const Duration(days: 7)));
-        dev.log('[Match] manual override → "${api.name}" uuid=$manualUuid', name: 'Match');
+        dev.log(
+          '[Match] manual → "${api.name}" uuid=$manualUuid',
+          name: 'Match',
+        );
         return result;
       }
     }
 
-    // Step 2 — Auto matching with scoring
+    // Step 2 — Auto matching via background isolate
     final apiStations = await _getApiStations();
-    final scored = <({Station api, int score})>[];
-    for (final api in apiStations) {
-      final s = _score(local, api);
-      if (s > 0) scored.add((api: api, score: s));
-    }
-    scored.sort((a, b) => b.score.compareTo(a.score));
 
-    if (scored.isEmpty) {
-      final result = MatchResult(
-        localStation: local,
-        apiStation: null,
-        score: 0,
-        strength: SignalStrength.none,
-        source: 'none',
-      );
-      _cache[cacheKey] = _CacheEntry(result, _ttl(const Duration(hours: 12)));
-      dev.log('[Match] no candidates for "${local.name}"', name: 'Match');
-      return result;
-    }
+    // Pre-filter: only healthy streams with a valid URL reduce ~3000 → ~800.
+    final candidates = apiStations
+        .where((s) => s.lastCheckOk == 1 && s.playableUrl != null)
+        .toList();
 
-    final best = scored.first;
     dev.log(
-      '[Match] best="${best.api.name}" score=${best.score} for "${local.name}"',
+      '[Match] scoring ${candidates.length} candidates for "${local.name}"',
       name: 'Match',
     );
 
-    final strength = best.score >= 80
+    final localNameNorm = _normText(local.name);
+    final localCity = _normalizeCity(local.city ?? '');
+    final localAliases = _getAliases(local.name);
+    final serialized = candidates.map(_serializeStation).toList();
+
+    // Off-load CPU-heavy loop to a background isolate — prevents ANR.
+    final scored = await Isolate.run(
+      () => _runScoringIsolate((
+        localNameNorm,
+        localCity,
+        localAliases,
+        serialized,
+      )),
+    );
+
+    final bestScore = scored.bestScore;
+    final best =
+        scored.bestIndex >= 0 ? candidates[scored.bestIndex] : null;
+
+    dev.log(
+      '[Match] best="${best?.name}" score=${bestScore.round()} for "${local.name}"',
+      name: 'Match',
+    );
+
+    final strength = bestScore >= 80
         ? SignalStrength.strong
-        : best.score >= 65
-            ? SignalStrength.weak
-            : SignalStrength.none;
+        : bestScore >= 65
+        ? SignalStrength.weak
+        : SignalStrength.none;
 
     final result = MatchResult(
       localStation: local,
-      apiStation: strength != SignalStrength.none ? best.api : null,
-      score: best.score,
+      apiStation:
+          strength != SignalStrength.none && best != null
+              ? _toStation(best, local)
+              : null,
+      score: bestScore.round(),
       strength: strength,
       source: 'auto',
     );
@@ -129,138 +287,94 @@ class RadioBrowserRepository {
     return result;
   }
 
-  // ── Scoring ────────────────────────────────────────────────────────────────
+  // ── Helpers ──────────────────────────────────────────────────────────────────
 
-  int _score(Station local, Station api) {
-    double score = 0;
-
-    // Name similarity: 0-45
-    final sim = _nameSimilarity(local.name, api.name);
-    score += sim * 45;
-
-    // Alias bonus: +20
-    if (_hasAliasMatch(local.name, api.name)) score += 20;
-
-    // City/province match: +25 or -25
-    final cityScore = _cityScore(local, api);
-    score += cityScore;
-
-    // Country Indonesia: +10
-    if (_isIndonesia(api)) score += 10;
-
-    // Active stream: +10 or -20
-    if (api.lastCheckok) {
-      score += 10;
-    } else {
-      score -= 20;
-    }
-
-    // Bitrate bonus: +5 (>=64kbps is reasonable quality)
-    if (api.bitrate >= 64) score += 5;
-
-    return score.round().clamp(0, 100);
-  }
-
-  // Dice coefficient on normalized word sets. Returns 0.0–1.0.
-  double _nameSimilarity(String a, String b) {
-    final wordsA = _normalizedWords(a).toSet();
-    final wordsB = _normalizedWords(b).toSet();
-    if (wordsA.isEmpty || wordsB.isEmpty) return 0.0;
-    final intersection = wordsA.intersection(wordsB).length;
-    return (2 * intersection) / (wordsA.length + wordsB.length);
-  }
-
-  Set<String> _normalizedWords(String name) {
-    return name
-        .toLowerCase()
-        .replaceAll(RegExp(r'\b(fm|am|radio)\b'), ' ')
-        .replaceAll(RegExp(r'[^a-z0-9]'), ' ')
-        .split(' ')
-        .where((w) => w.length >= 2)
-        .toSet();
-  }
-
-  bool _hasAliasMatch(String localName, String apiName) {
-    final normLocal = _normalizeName(localName);
-    final normApi = apiName.toLowerCase();
-    final aliases = kStationAliases[normLocal];
-    if (aliases == null) return false;
-    return aliases.any((alias) => normApi.contains(alias));
-  }
-
-  int _cityScore(Station local, Station api) {
-    final city = local.city?.toLowerCase();
-    if (city == null) return 0;
-    final provinces = _kCityProvinces[city];
-    if (provinces == null) return 0;
-    final apiState = (api.state ?? '').toLowerCase();
-    if (apiState.isEmpty) return 0;
-    return provinces.any((p) => apiState.contains(p) || p.contains(apiState))
-        ? 25
-        : -25;
-  }
-
-  bool _isIndonesia(Station api) {
-    final c = (api.country ?? '').toLowerCase();
-    return c.contains('indonesia') || c.contains('id');
-  }
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
+  // Full name — used for session cache (precise).
   String _cacheKey(Station local) {
     final city = (local.city ?? 'unknown').toLowerCase();
-    final freq = local.fmFrequency?.toStringAsFixed(1) ??
+    final freq =
+        local.fmFrequency?.toStringAsFixed(1) ??
         local.amFrequency?.toString() ??
         '0';
-    return '$city:$freq:${_normalizeName(local.name)}';
+    return '$city:$freq:${local.name.toLowerCase()}';
   }
 
+  // Strips FM/AM/Radio keywords but keeps city names — matches kManualOverrides.
   String _overrideKey(Station local) {
-    final city = (local.city ?? '').toLowerCase();
-    final freq = local.fmFrequency?.toStringAsFixed(1) ??
+    final city = (local.city ?? 'unknown').toLowerCase();
+    final freq =
+        local.fmFrequency?.toStringAsFixed(1) ??
         local.amFrequency?.toString() ??
         '0';
-    return '$city:$freq:${_normalizeName(local.name)}';
-  }
-
-  String _normalizeName(String name) {
-    return name
+    final name = local.name
         .toLowerCase()
-        .replaceAll(RegExp(r'\b(fm|am|radio)\b'), '')
-        .replaceAll(RegExp(r'[^a-z0-9]'), ' ')
-        .trim()
-        .replaceAll(RegExp(r'\s+'), ' ');
+        .replaceAll(_reAliasStrip, '')
+        .replaceAll(_reNonAlpha, ' ')
+        .replaceAll(_reSpaces, ' ')
+        .trim();
+    return '$city:$freq:$name';
   }
 
-  DateTime _ttl(Duration duration) => DateTime.now().add(duration);
+  String _normalizeCity(String city) {
+    final c = city.toLowerCase().trim();
+    if (c == 'jogja' || c == 'yogya') return 'yogyakarta';
+    return c;
+  }
 
-  Future<Station?> _findByUuid(String uuid) async {
+  List<String> _getAliases(String localName) {
+    final key1 = localName.toLowerCase();
+    final key2 = key1
+        .replaceAll(_reAliasStrip, '')
+        .replaceAll(_reSpaces, ' ')
+        .trim();
+    final aliases = kStationAliases[key1] ?? kStationAliases[key2];
+    return aliases?.map((a) => a.toLowerCase()).toList() ?? [];
+  }
+
+  Map<String, Object?> _serializeStation(RadioBrowserStation s) => {
+    'name': s.name,
+    'tags': s.tags,
+    'state': s.state,
+    'country': s.country,
+    'homepage': s.homepage,
+    'url': s.playableUrl,
+    'countryCode': s.countryCode,
+    'lastCheckOk': s.lastCheckOk,
+    'bitrate': s.bitrate,
+  };
+
+  DateTime _ttl(Duration d) => DateTime.now().add(d);
+
+  Future<RadioBrowserStation?> _findByUuid(String uuid) async {
     try {
-      final results = await _api.searchByUuid(uuid);
-      return results.firstOrNull;
+      return (await _api.searchByUuid(uuid)).firstOrNull;
     } catch (_) {
       return null;
     }
   }
 
-  Future<List<Station>> _getApiStations() {
+  Future<List<RadioBrowserStation>> _getApiStations() {
     _apiFetch ??= _api.fetchByCountry('indonesia').catchError((e) {
       _apiFetch = null;
-      return <Station>[];
+      return <RadioBrowserStation>[];
     });
     return _apiFetch!;
   }
 
-  Station _localToStation(LocalStation local) => Station(
-        id: 'local_${local.city.toLowerCase()}_${local.frequency}',
-        name: local.name,
-        streamUrl: '',
-        fmFrequency: local.fmFrequency,
-        amFrequency: local.amFrequency,
-        city: local.city,
-      );
+  Station _toStation(RadioBrowserStation api, Station local) {
+    return local.copyWith(streamUrl: api.playableUrl ?? '');
+  }
 
-  // ── Dial navigation helpers ────────────────────────────────────────────────
+  Station _localToStation(LocalStation local) => Station(
+    id: 'local_${local.city.toLowerCase()}_${local.frequency}',
+    name: local.name,
+    streamUrl: '',
+    fmFrequency: local.fmFrequency,
+    amFrequency: local.amFrequency,
+    city: local.city,
+  );
+
+  // ── Dial navigation helpers ──────────────────────────────────────────────────
 
   List<Station> fmStationsOnDial(List<Station> all) =>
       all.where((s) => s.hasFMFrequency).toList()

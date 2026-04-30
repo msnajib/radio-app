@@ -227,6 +227,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 context.read<SfxService>().stopStationFound();
               },
             ),
+            // noStream → start static noise (station known but no stream available)
+            BlocListener<RadioBloc, RadioState>(
+              listenWhen: (prev, curr) => !prev.isNoStream && curr.isNoStream,
+              listener: (context, state) {
+                dev.log(
+                  '[XYZ][HomeScreen] noStream → "${state.currentStation?.name}" — start static',
+                  name: 'Home',
+                );
+                context.read<SfxService>().startStaticNoise();
+              },
+            ),
             // Programmatic station change (prev/next) → jump dial to new frequency.
             // Skip if dial already snapped to this station (came from snap, not prev/next).
             BlocListener<RadioBloc, RadioState>(
@@ -517,6 +528,7 @@ class _FreqDisplay extends StatelessWidget {
               stationName: radioState.currentStation?.name,
               hasError: radioState.status == RadioStatus.error,
               isWeakSignal: radioState.isWeakSignal,
+              isNoStream: radioState.isNoStream,
             );
           },
         );
@@ -647,13 +659,15 @@ class _ControlsBar extends StatelessWidget {
                     ? Icons.pause_rounded
                     : Icons.play_arrow_rounded,
                 isLoading: state.isLoading,
-                onPressed: () {
-                  if (state.isPlaying) {
-                    context.read<RadioBloc>().add(const RadioPausePressed());
-                  } else {
-                    context.read<RadioBloc>().add(const RadioPlayPressed());
-                  }
-                },
+                onPressed: state.isNoStream
+                    ? null
+                    : () {
+                        if (state.isPlaying) {
+                          context.read<RadioBloc>().add(const RadioPausePressed());
+                        } else {
+                          context.read<RadioBloc>().add(const RadioPlayPressed());
+                        }
+                      },
               ),
             ),
             const SizedBox(width: 12),

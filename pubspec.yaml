@@ -2,7 +2,7 @@ name: radio_app
 description: "Analog radio streaming app with neumorphism UI."
 publish_to: 'none'
 
-version: 0.1.0-alpha.5+9
+version: 0.1.0-alpha.6+10
 
 environment:
   sdk: ^3.9.0
